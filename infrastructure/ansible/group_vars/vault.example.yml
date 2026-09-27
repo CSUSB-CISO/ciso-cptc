@@ -1,0 +1,17 @@
+# ── Vault template ────────────────────────────────────────────────────────────
+# 1. Copy to  vault.yml  in this directory.
+# 2. Fill in real, strong, LAB-ONLY values.
+# 3. Encrypt in place:   ansible-vault encrypt group_vars/vault.yml
+#    (vault.yml is gitignored; the encrypted file is safe, plaintext is not.)
+# 4. Put your vault password in ~/.ansible-secrets/larpers_vault_pass (gitignored).
+#
+# Retrieve the cloudbase-init admin password with, on the Proxmox host:
+#   qm cloudinit dump <vmid> user
+
+vault_windows_admin_password: "CHANGE_ME_lab_only"   # local + domain Administrator
+vault_dsrm_password: "CHANGE_ME_dsrm_lab_only"       # DC restore-mode password
+vault_mssql_sa_password: "CHANGE_ME_sa_lab_only"     # SQL 'sa' (mixed mode)
+
+# Default password for the synthetic AD user accounts (Stage 1: strong).
+# Stage 2 replaces specific accounts with intentionally weak/known values.
+vault_ad_user_default_password: "CHANGE_ME_users_lab_only"

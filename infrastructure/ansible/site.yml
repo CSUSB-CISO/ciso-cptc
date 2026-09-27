@@ -1,0 +1,61 @@
+---
+# ═══════════════════════════════════════════════════════════════════════════
+#  Full build of The Larpers CPTC range. Idempotent — safe to re-run.
+#  Prereq: Terraform has created the VMs; vault.yml exists & is encrypted.
+#  Run:  ansible-playbook site.yml
+# ═══════════════════════════════════════════════════════════════════════════
+
+- name: Load vault secrets everywhere
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - group_vars/vault.yml
+  tasks:
+    - ansible.builtin.debug:
+        msg: "Building '{{ company_name }}' range for {{ branding_team_name }} — vuln_stage {{ vuln_stage }}"
+      run_once: true
+
+- name: Common prep (all Windows hosts)
+  hosts: domain_controllers:sql_servers:workstations
+  gather_facts: true
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - common_prereqs
+
+- name: Domain controller — promote + populate AD
+  hosts: domain_controllers
+  gather_facts: true
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - domain_controller
+
+- name: SQL server — install SQL + benign business database
+  hosts: sql_servers
+  gather_facts: true
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - mssql_server
+    - business_data
+
+- name: Workstation — join to domain
+  hosts: workstations
+  gather_facts: true
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - domain_join
+
+# ── Intentional vulnerabilities (Stage >= 2) ────────────────────────────────
+# These roles are STUBS until CyberHawks reuse permission is confirmed (or they
+# are re-implemented originally). They fail loudly rather than pretend to work.
+- name: Intentional vulnerabilities (gated by vuln_stage)
+  hosts: all
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  tasks:
+    - name: Stage 2+ vulnerabilities requested
+      ansible.builtin.debug:
+        msg: >-
+          vuln_stage is {{ vuln_stage }}. Stage 2+ roles are stubbed pending
+          CyberHawks reuse permission (see UPSTREAM.md). Nothing enabled.
+      when: vuln_stage | int >= 2
+      run_once: true

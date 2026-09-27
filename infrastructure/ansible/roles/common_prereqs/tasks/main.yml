@@ -1,0 +1,33 @@
+---
+# Baseline prep + the non-negotiable isolation guard.
+
+- name: SAFETY — confirm the range cannot reach the Internet
+  ansible.windows.win_shell: |
+    $r = Test-NetConnection -ComputerName 1.1.1.1 -Port 443 -WarningAction SilentlyContinue
+    if ($r.TcpTestSucceeded) { "REACHABLE" } else { "ISOLATED" }
+  register: isolation_probe
+  changed_when: false
+  failed_when: false
+
+- name: SAFETY — abort if the range is NOT isolated
+  ansible.builtin.fail:
+    msg: >-
+      {{ inventory_hostname }} reached the Internet (1.1.1.1:443). This range must
+      be isolated. Move it to an air-gapped bridge before continuing, or set
+      enforce_isolation_check: false only if you fully understand the risk.
+  when:
+    - enforce_isolation_check | default(true)
+    - "'REACHABLE' in isolation_probe.stdout"
+
+- name: Set timezone (Pacific)
+  community.windows.win_timezone:
+    timezone: "Pacific Standard Time"
+
+- name: Set the computer name to match inventory
+  ansible.windows.win_hostname:
+    name: "{{ inventory_hostname }}"
+  register: rename
+
+- name: Reboot if renamed
+  ansible.windows.win_reboot:
+  when: rename.reboot_required | default(false)

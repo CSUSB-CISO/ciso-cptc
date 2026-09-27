@@ -1,0 +1,30 @@
+---
+# Seed the benign synthetic business database on sql1.
+
+- name: Stage the seed script on the SQL host
+  ansible.windows.win_template:
+    src: seed_business_db.sql.j2
+    dest: 'C:\Windows\Temp\seed_business_db.sql'
+
+- name: Run the seed script with sqlcmd
+  ansible.windows.win_shell: >-
+    sqlcmd -S localhost -b -i C:\Windows\Temp\seed_business_db.sql
+  register: seed
+  changed_when: "'Seed complete' in (seed.stdout | default(''))"
+  failed_when: seed.rc != 0
+
+- name: Verify expected tables exist
+  ansible.windows.win_shell: >-
+    sqlcmd -S localhost -h -1 -W -Q
+    "SET NOCOUNT ON; SELECT COUNT(*) FROM {{ mssql_business_db }}.sys.tables;"
+  register: tblcount
+  changed_when: false
+
+- name: Show table count
+  ansible.builtin.debug:
+    msg: "{{ mssql_business_db }} has {{ tblcount.stdout | trim }} tables."
+
+- name: Remove the staged script
+  ansible.windows.win_file:
+    path: 'C:\Windows\Temp\seed_business_db.sql'
+    state: absent

@@ -1,0 +1,9 @@
+---
+# STAGE 4 STUB — AD CS misconfiguration (ESC1–ESC8/ESC11+).
+# Requires a CA host (add `ca` to inventory/terraform at Stage 4) and maps to
+# CyberHawks role `adcs_esc_templates`. Reuse requires owner permission
+# (see ../../../UPSTREAM.md). Not implemented here.
+
+- name: Refuse to run unimplemented vulnerability stage
+  ansible.builtin.fail:
+    msg: "adcs_esc is a STUB (Stage 4). Needs a CA host + CyberHawks permission or original re-impl. See UPSTREAM.md."

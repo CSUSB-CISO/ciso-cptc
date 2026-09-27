@@ -1,0 +1,148 @@
+-- {{ company_name }} — synthetic training database ({{ mssql_business_db }})
+-- CPTC12 theme: an aging family-owned THEME PARK (rides, attractions, patrons).
+-- Stage 1: BENIGN operations data only. NO planted credentials/secrets here.
+-- (Stage 3 adds ApplicationConfig secrets, backups on shares, linked servers.)
+-- All data is fictional. Do NOT insert real people or records.
+SET NOCOUNT ON;
+
+IF DB_ID('{{ mssql_business_db }}') IS NULL
+    CREATE DATABASE [{{ mssql_business_db }}];
+GO
+USE [{{ mssql_business_db }}];
+GO
+
+IF OBJECT_ID('dbo.Departments') IS NULL
+CREATE TABLE dbo.Departments (
+    DeptID   INT PRIMARY KEY,
+    Name     NVARCHAR(64) NOT NULL,
+    Location NVARCHAR(64) NULL
+);
+IF OBJECT_ID('dbo.Employees') IS NULL
+CREATE TABLE dbo.Employees (
+    EmpID    INT PRIMARY KEY,
+    FullName NVARCHAR(96) NOT NULL,
+    Title    NVARCHAR(64) NULL,
+    DeptID   INT NULL,
+    Email    NVARCHAR(128) NULL,
+    HireDate DATE NULL
+);
+-- Rides / attractions = the park's core "asset inventory"
+IF OBJECT_ID('dbo.Attractions') IS NULL
+CREATE TABLE dbo.Attractions (
+    AttractionID INT PRIMARY KEY,
+    Name         NVARCHAR(96) NOT NULL,
+    Type         NVARCHAR(48) NULL,   -- Coaster / Water / Family / Show
+    Zone         NVARCHAR(48) NULL,
+    YearInstalled INT NULL,           -- "aging" park: some old, some new
+    Status       NVARCHAR(24) NULL    -- Operational / Maintenance / Closed
+);
+IF OBJECT_ID('dbo.Patrons') IS NULL
+CREATE TABLE dbo.Patrons (
+    PatronID INT PRIMARY KEY,
+    Name     NVARCHAR(96) NOT NULL,
+    Email    NVARCHAR(128) NULL,
+    City     NVARCHAR(64) NULL
+);
+IF OBJECT_ID('dbo.SeasonPasses') IS NULL
+CREATE TABLE dbo.SeasonPasses (
+    PassID   INT PRIMARY KEY,
+    PatronID INT NULL,
+    Tier     NVARCHAR(24) NULL,       -- Bronze / Silver / Gold
+    ValidThru DATE NULL
+);
+IF OBJECT_ID('dbo.Vendors') IS NULL
+CREATE TABLE dbo.Vendors (
+    VendorID INT PRIMARY KEY,
+    Name     NVARCHAR(96) NOT NULL,
+    Category NVARCHAR(48) NULL        -- RideParts / Food / Merch / Facilities
+);
+IF OBJECT_ID('dbo.Invoices') IS NULL
+CREATE TABLE dbo.Invoices (
+    InvoiceID INT PRIMARY KEY,
+    VendorID  INT NULL,
+    AmountUSD DECIMAL(12,2) NULL,
+    IssuedOn  DATE NULL,
+    Status    NVARCHAR(24) NULL
+);
+IF OBJECT_ID('dbo.MaintenanceTickets') IS NULL
+CREATE TABLE dbo.MaintenanceTickets (
+    TicketID     INT PRIMARY KEY,
+    AttractionID INT NULL,
+    Subject      NVARCHAR(128) NULL,
+    Priority     NVARCHAR(16) NULL,
+    Status       NVARCHAR(24) NULL
+);
+IF OBJECT_ID('dbo.Projects') IS NULL
+CREATE TABLE dbo.Projects (
+    ProjID INT PRIMARY KEY,
+    Name   NVARCHAR(96) NOT NULL,
+    Owner  NVARCHAR(96) NULL,
+    Status NVARCHAR(24) NULL
+);
+GO
+
+-- ── Seed rows (idempotent via NOT EXISTS) ──────────────────────────────────
+IF NOT EXISTS (SELECT 1 FROM dbo.Departments)
+INSERT INTO dbo.Departments (DeptID,Name,Location) VALUES
+ (1,'Rides & Attractions','Park'),(2,'Guest Services','Front Gate'),
+ (3,'Food & Beverage','Midway'),(4,'Maintenance','Shop'),
+ (5,'Finance','Admin Bldg'),(6,'HR','Admin Bldg'),(7,'IT','Admin Bldg');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Employees)
+INSERT INTO dbo.Employees (EmpID,FullName,Title,DeptID,Email,HireDate) VALUES
+ (101,'Rowan Coaster','Ride Operator',1,'r.coaster@{{ domain_dns_name }}','2013-04-02'),
+ (102,'Gale Usher','Guest Services Lead',2,'g.usher@{{ domain_dns_name }}','2016-06-11'),
+ (103,'Casey Churro','F&B Supervisor',3,'c.churro@{{ domain_dns_name }}','2019-03-19'),
+ (104,'Wes Wrench','Maintenance Tech',4,'w.wrench@{{ domain_dns_name }}','2011-09-27'),
+ (105,'Avery Ledger','Accountant',5,'a.finance@{{ domain_dns_name }}','2020-01-15'),
+ (106,'Ilya Tanaka','Systems Admin',7,'i.tanaka@{{ domain_dns_name }}','2015-08-05');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Attractions)
+INSERT INTO dbo.Attractions (AttractionID,Name,Type,Zone,YearInstalled,Status) VALUES
+ (1,'Thunder Gulch Coaster','Coaster','Frontier',1998,'Operational'),
+ (2,'Barnyard Splash','Water','Farmyard',2005,'Operational'),
+ (3,'Haystack Hopper','Family','Farmyard',2010,'Maintenance'),
+ (4,'Silo Drop Tower','Thrill','Midway',2002,'Operational'),
+ (5,'Butters Express Train','Family','Park-wide',1989,'Operational'),
+ (6,'Pumpkin Patch Carousel','Family','Farmyard',1992,'Closed');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Patrons)
+INSERT INTO dbo.Patrons (PatronID,Name,Email,City) VALUES
+ (5001,'Dana Meadows','dana.m@example.com','Redlands'),
+ (5002,'Chris Barlow','cbarlow@example.com','Rialto'),
+ (5003,'Priya Nair','priya.nair@example.com','San Bernardino');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.SeasonPasses)
+INSERT INTO dbo.SeasonPasses (PassID,PatronID,Tier,ValidThru) VALUES
+ (9001,5001,'Gold','2027-05-31'),
+ (9002,5002,'Silver','2027-05-31'),
+ (9003,5003,'Bronze','2026-12-31');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Vendors)
+INSERT INTO dbo.Vendors (VendorID,Name,Category) VALUES
+ (7001,'RideTech Components','RideParts'),
+ (7002,'Midway Concessions Supply','Food'),
+ (7003,'FunMerch Wholesale','Merch'),
+ (7004,'ParkSafe Facilities','Facilities');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Invoices)
+INSERT INTO dbo.Invoices (InvoiceID,VendorID,AmountUSD,IssuedOn,Status) VALUES
+ (60001,7001,18400.00,'2026-06-03','Paid'),
+ (60002,7002,6250.75,'2026-06-20','Open'),
+ (60003,7004,12990.00,'2026-07-08','Open'),
+ (60004,7003,3410.50,'2026-07-22','Paid');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.MaintenanceTickets)
+INSERT INTO dbo.MaintenanceTickets (TicketID,AttractionID,Subject,Priority,Status) VALUES
+ (4001,3,'Haystack Hopper hydraulic leak','High','Open'),
+ (4002,6,'Carousel motor replacement','High','Open'),
+ (4003,1,'Coaster quarterly inspection','Medium','Open');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Projects)
+INSERT INTO dbo.Projects (ProjID,Name,Owner,Status) VALUES
+ (301,'Ticketing System Upgrade','i.tanaka','Active'),
+ (302,'New Farmyard Splash Zone','w.wrench','Planning');
+GO
+
+PRINT 'Seed complete for {{ mssql_business_db }}';
+GO

@@ -1,0 +1,86 @@
+---
+# Promote dc1 to a new forest, then build OUs / groups / users / shares.
+# Uses the microsoft.ad collection. Idempotent.
+
+- name: Install AD DS + DNS + management tools
+  ansible.windows.win_feature:
+    name:
+      - AD-Domain-Services
+      - DNS
+      - RSAT-AD-PowerShell
+      - RSAT-DNS-Server
+    include_management_tools: true
+    state: present
+  register: addsfeat
+
+- name: Create the forest / promote to domain controller
+  microsoft.ad.domain:
+    dns_domain_name: "{{ domain_dns_name }}"
+    domain_netbios_name: "{{ domain_netbios }}"
+    safe_mode_password: "{{ vault_dsrm_password }}"
+    reboot: true
+
+- name: Wait for AD Web Services after promotion
+  ansible.windows.win_service:
+    name: ADWS
+    state: started
+  retries: 20
+  delay: 15
+  register: adws
+  until: adws is succeeded
+
+- name: Create OUs
+  microsoft.ad.ou:
+    name: "{{ item.split('/') | last }}"
+    path: >-
+      {{ (item.split('/')[:-1] | map('regex_replace', '^(.*)$', 'OU=\1') | reverse | join(',')) ~ (',' if '/' in item else '') ~ domain_dn }}
+    state: present
+  loop: "{{ ad_ous }}"
+
+- name: Create groups
+  microsoft.ad.group:
+    name: "{{ item.name }}"
+    scope: global
+    path: "OU={{ item.ou.split('/') | reverse | join(',OU=') }},{{ domain_dn }}"
+    state: present
+  loop: "{{ ad_groups }}"
+
+- name: Create users (Stage 1 — strong password from vault)
+  microsoft.ad.user:
+    identity: "{{ item.sam }}"
+    firstname: "{{ item.name.split(' ') | first }}"
+    surname: "{{ item.name.split(' ') | last }}"
+    sam_account_name: "{{ item.sam }}"
+    upn: "{{ item.sam }}@{{ domain_dns_name }}"
+    password: "{{ vault_ad_user_default_password }}"
+    password_never_expires: true
+    path: "OU={{ item.ou.split('/') | reverse | join(',OU=') }},{{ domain_dn }}"
+    groups:
+      set: "{{ item.groups }}"
+    state: present
+  loop: "{{ ad_users }}"
+  loop_control: { label: "{{ item.sam }}" }
+
+- name: Create SMB share directories
+  ansible.windows.win_file:
+    path: "{{ item.path }}"
+    state: directory
+  loop: "{{ smb_shares }}"
+  loop_control: { label: "{{ item.name }}" }
+
+- name: Publish SMB shares
+  ansible.windows.win_share:
+    name: "{{ item.name }}"
+    path: "{{ item.path }}"
+    read: "{{ 'Everyone' if (item.everyone_read | default(false)) else omit }}"
+    full: "{{ item.groups_rw | default(omit) }}"
+    state: present
+  loop: "{{ smb_shares }}"
+  loop_control: { label: "{{ item.name }}" }
+
+- name: Drop a benign readme in Public share (evidence-practice artifact)
+  ansible.windows.win_copy:
+    content: |
+      {{ company_name }} — internal file server. Training range ({{ branding_team_name }}).
+      All data here is synthetic. Do not store real information.
+    dest: "C:\\Shares\\Public\\README.txt"

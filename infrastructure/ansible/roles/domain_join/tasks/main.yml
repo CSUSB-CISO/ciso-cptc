@@ -1,0 +1,21 @@
+---
+# Point the workstation at the DC for DNS, then join the domain.
+
+- name: Set DNS to the domain controller
+  ansible.windows.win_dns_client:
+    adapter_names: "*"
+    dns_servers:
+      - "{{ dns_primary }}"
+
+- name: Join the domain
+  microsoft.ad.membership:
+    dns_domain_name: "{{ domain_dns_name }}"
+    domain_admin_user: "{{ domain_netbios }}\\Administrator"
+    domain_admin_password: "{{ vault_windows_admin_password }}"
+    state: domain
+    reboot: true
+
+- name: Tag the machine with its persona (for exercises)
+  ansible.windows.win_shell: |
+    [Environment]::SetEnvironmentVariable('LAB_PERSONA','{{ persona | default("generic") }}','Machine')
+  changed_when: false

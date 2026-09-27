@@ -1,0 +1,52 @@
+# ══ ciso-cptc — never commit ════════════════════════════════════════════════
+# (unanchored patterns match at any depth)
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+**/group_vars/vault.yml
+!**/group_vars/vault.example.yml
+*.vault
+*_vault_pass
+.ansible-secrets/
+*.pem
+*.key
+id_ed25519*
+id_rsa*
+*.pfx
+
+# Generated credential material (coach-only, never student-visible)
+**/generated/
+*pool_accounts*.csv
+
+# ── Terraform ────────────────────────────────────────────────────────────────
+**/.terraform/
+*.tfstate
+*.tfstate.*
+**/*.tfvars
+!**/*.tfvars.example
+.terraform.lock.hcl
+crash.log
+
+# ── Large media / installers (supplied out-of-band) ──────────────────────────
+*.iso
+*.exe
+iso/
+
+# ── CherryTree notes (course-derived; keep local) ────────────────────────────
+*.ctb
+*.ctb~
+*.ctb~~
+*.ctb~~~
+
+# ── Engagement / student output ──────────────────────────────────────────────
+loot/
+scans/
+evidence/
+
+# ── OS / editor cruft ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/

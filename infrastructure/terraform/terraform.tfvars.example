@@ -1,0 +1,25 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored (it holds
+# the API token). Do NOT commit real values.
+
+proxmox_endpoint  = "https://192.168.192.150:8006/"
+proxmox_api_token = "automation@pve!terraform=00000000-0000-0000-0000-000000000000"
+proxmox_insecure  = true
+proxmox_ssh_user  = "root"
+proxmox_node      = "pve"
+proxmox_storage   = "local-lvm"
+proxmox_bridge    = "vmbr-range"   # isolated bridge, no uplink
+
+gateway    = "10.20.10.1"          # or "" for fully isolated (no gateway)
+dns_server = "10.20.10.10"         # dc1
+
+# Real template IDs on YOUR Proxmox (build these once — see docs/BUILD_RUNBOOK.md)
+template_ids = {
+  win2019 = 9019
+  win11   = 9011
+  kali    = 9200
+}
+
+# Initial admin password baked by cloudbase-init (lab-only). Keep out of VCS.
+vm_password = "CHANGE_ME_lab_only"
+
+team_name = "The Larpers"

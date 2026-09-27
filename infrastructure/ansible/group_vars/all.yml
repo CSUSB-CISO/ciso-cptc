@@ -1,0 +1,100 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  The Larpers — CPTC training range :: master variables
+#  This is the file coaches edit most. Everything is variable-driven; nothing
+#  about the reference environment ("CyberHawks") is hardcoded anywhere.
+#  Values marked [PROPOSAL] are safe defaults — change or keep them.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── Staging ──────────────────────────────────────────────────────────────────
+# 1 = MVP (AD/DNS/SQL/benign data, NO exploits). 2-4 unlock intentional vulns
+# (currently stubbed pending CyberHawks reuse permission — see UPSTREAM.md).
+vuln_stage: 1
+
+# ── Identity / branding ──────────────────────────────────────────────────────
+# Themed to the CPTC12 (2026-27) scenario: "Butters Family Farm" — an aging
+# family-owned THEME PARK (rides, attractions, patron operations). The "aging"
+# framing intentionally justifies mixed-age Windows Servers at later stages.
+# This is a TRAINING analogue, not the real competition environment.
+company_name: "Butters Family Farm"      # CPTC12 theme (theme-park operator)
+company_short: "BFF"
+domain_dns_name: "buttersfarm.lab"       # [PROPOSAL] themed
+domain_netbios: "BUTTERS"                # [PROPOSAL] themed
+# Derived automatically (do not edit): DC=buttersfarm,DC=lab
+domain_dn: "DC={{ domain_dns_name.split('.') | join(',DC=') }}"
+
+branding_team_name: "The Larpers"
+branding_primary_hex: "#0065BD"          # CSUSB Coyote Blue
+branding_accent_hex: "#3DB7E4"
+
+# ── Network ──────────────────────────────────────────────────────────────────
+ip_network: "10.20.10.0/24"              # [PROPOSAL]
+gateway: "10.20.10.1"                    # [PROPOSAL] ("" if fully isolated)
+dns_primary: "10.20.10.10"               # dc1
+
+hosts:
+  dc1:  { ip: "10.20.10.10", role: dc,          os: win2019 }
+  sql1: { ip: "10.20.10.20", role: sql,         os: win2019 }
+  ws1:  { ip: "10.20.10.50", role: workstation, os: win11, persona: guest_services }
+
+# ── Active Directory content (Stage 1) ───────────────────────────────────────
+# Synthetic only. NO real CSUSB/student/customer data anywhere.
+# Theme-park org structure (Butters Family Farm).
+ad_ous:
+  - "Park"
+  - "Park/RidesAndAttractions"
+  - "Park/GuestServices"
+  - "Park/FoodAndBeverage"
+  - "Park/Maintenance"
+  - "Park/Finance"
+  - "Park/HR"
+  - "Park/IT"
+  - "Park/ServiceAccounts"
+  - "Park/Workstations"
+
+ad_groups:
+  - { name: "Rides-Ops",       ou: "Park/RidesAndAttractions" }
+  - { name: "GuestServices",   ou: "Park/GuestServices" }
+  - { name: "FnB-Staff",       ou: "Park/FoodAndBeverage" }
+  - { name: "Maintenance",     ou: "Park/Maintenance" }
+  - { name: "Finance-Users",   ou: "Park/Finance" }
+  - { name: "HR-Users",        ou: "Park/HR" }
+  - { name: "IT-Admins",       ou: "Park/IT" }
+  - { name: "SQL-Admins",      ou: "Park/IT" }
+
+# Starter users. Passwords come from Vault (per-role), never hardcoded here.
+# In MVP these are ordinary strong-password accounts; Stage 2 introduces the
+# intentional weaknesses. Names are fictional, themed to the park.
+ad_users:
+  - { sam: "r.coaster",  name: "Rowan Coaster",  ou: "Park/RidesAndAttractions", groups: ["Rides-Ops"] }
+  - { sam: "g.usher",    name: "Gale Usher",     ou: "Park/GuestServices",       groups: ["GuestServices"] }
+  - { sam: "c.churro",   name: "Casey Churro",   ou: "Park/FoodAndBeverage",     groups: ["FnB-Staff"] }
+  - { sam: "w.wrench",   name: "Wes Wrench",     ou: "Park/Maintenance",         groups: ["Maintenance"] }
+  - { sam: "a.finance",  name: "Avery Ledger",   ou: "Park/Finance",             groups: ["Finance-Users"] }
+  - { sam: "i.tanaka",   name: "Ilya Tanaka",    ou: "Park/IT",                  groups: ["IT-Admins"] }
+  - { sam: "svc-sql",    name: "SQL Service",    ou: "Park/ServiceAccounts",     groups: ["SQL-Admins"] }
+
+# SMB shares to create on dc1 (Stage 1 = benign; Stage 3 adds sensitive drops).
+smb_shares:
+  - { name: "Public",      path: "C:\\Shares\\Public",      everyone_read: true }
+  - { name: "Finance",     path: "C:\\Shares\\Finance",     groups_rw: ["Finance-Users"] }
+  - { name: "Maintenance", path: "C:\\Shares\\Maintenance", groups_rw: ["Maintenance"] }
+
+# ── SQL Server (Stage 1) ─────────────────────────────────────────────────────
+mssql_instance_name: "MSSQLSERVER"        # default instance
+mssql_edition: "Developer"                # NOT Evaluation (see REQUIRED_INPUTS.md E1)
+mssql_business_db: "ParkOps"              # theme-park operations DB
+mssql_installer_path: 'C:\\Installers\\SQL2019-Dev\\setup.exe'  # where you place it
+mssql_mixed_mode: true                    # SQL auth enabled (realistic; sa in Vault)
+
+# ── Workstation personas (Stage 1 uses one) ──────────────────────────────────
+persona_profiles:
+  guest_services: { display: "Guest Services / Ticketing Workstation" }
+  rides_ops:      { display: "Ride Operations Workstation" }
+  maintenance:    { display: "Maintenance Shop Workstation" }
+  finance:        { display: "Finance Workstation" }
+  it:             { display: "IT Support Workstation" }
+  exec:           { display: "Park Manager (Executive) Workstation" }
+
+# ── Safety ───────────────────────────────────────────────────────────────────
+# Refuse to run if the range can reach the Internet (checked in common_prereqs).
+enforce_isolation_check: true

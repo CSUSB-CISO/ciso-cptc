@@ -1,0 +1,47 @@
+name: Build Playbook Wiki
+
+# Regenerates playbook/CPTC_Playbook_Wiki.html from the phase .md files whenever
+# any of them (or the build script) changes, and commits the result back so
+# teammates who `git pull` get the ready-to-use searchable wiki.
+
+on:
+  push:
+    paths:
+      - 'playbook/*.md'
+      - 'playbook/build_wiki.py'
+      - '.github/workflows/build-wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-wiki
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Build wiki HTML from markdown
+        run: python playbook/build_wiki.py
+
+      - name: Commit regenerated HTML (only if it changed)
+        run: |
+          git config user.name  "playbook-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add playbook/CPTC_Playbook_Wiki.html
+          if git diff --cached --quiet; then
+            echo "No change in generated wiki — nothing to commit."
+          else
+            git commit -m "build: regenerate CPTC_Playbook_Wiki.html [skip ci]"
+            git push
+          fi

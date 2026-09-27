@@ -1,0 +1,81 @@
+---
+# Post-build validation. Confirms the range matches the intended Stage-1 state.
+# Run:  ansible-playbook validate.yml
+
+- name: Validate domain controller
+  hosts: domain_controllers
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  tasks:
+    - name: DC diagnostics
+      ansible.windows.win_shell: "dcdiag /q"
+      register: dcd
+      changed_when: false
+      failed_when: false
+    - name: Domain resolves
+      ansible.windows.win_shell: "nltest /dsgetdc:{{ domain_dns_name }}"
+      register: dsg
+      changed_when: false
+    - name: Expected users exist
+      ansible.windows.win_shell: >-
+        powershell -c "(Get-ADUser -Filter * | Measure-Object).Count"
+      register: usercount
+      changed_when: false
+    - name: SMB shares present
+      ansible.windows.win_shell: "powershell -c \"(Get-SmbShare | Where-Object {$_.Name -notlike '*$'}).Name -join ','\""
+      register: shares
+      changed_when: false
+    - ansible.builtin.debug:
+        msg:
+          - "dcdiag: {{ 'OK' if dcd.rc == 0 else 'CHECK (rc=' ~ dcd.rc ~ ')' }}"
+          - "AD users: {{ usercount.stdout | trim }}"
+          - "Non-admin shares: {{ shares.stdout | trim }}"
+
+- name: Validate SQL + business DB
+  hosts: sql_servers
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  tasks:
+    - name: SQL reachable + DB present
+      ansible.windows.win_shell: >-
+        sqlcmd -S localhost -h -1 -W -Q
+        "SET NOCOUNT ON; SELECT COUNT(*) FROM {{ mssql_business_db }}.sys.tables;"
+      register: tbls
+      changed_when: false
+    - name: Employee row count
+      ansible.windows.win_shell: >-
+        sqlcmd -S localhost -h -1 -W -Q
+        "SET NOCOUNT ON; SELECT COUNT(*) FROM {{ mssql_business_db }}.dbo.Employees;"
+      register: emps
+      changed_when: false
+    - ansible.builtin.debug:
+        msg: "{{ mssql_business_db }}: {{ tbls.stdout | trim }} tables, {{ emps.stdout | trim }} employees."
+
+- name: Validate workstation join
+  hosts: workstations
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  tasks:
+    - name: Confirm domain membership
+      ansible.windows.win_shell: >-
+        powershell -c "(Get-CimInstance Win32_ComputerSystem).Domain"
+      register: dom
+      changed_when: false
+    - ansible.builtin.assert:
+        that: "domain_dns_name in dom.stdout"
+        success_msg: "{{ inventory_hostname }} joined to {{ domain_dns_name }}."
+        fail_msg: "{{ inventory_hostname }} is NOT joined ({{ dom.stdout | trim }})."
+
+- name: Isolation re-check (must be isolated)
+  hosts: domain_controllers:sql_servers:workstations
+  gather_facts: false
+  tasks:
+    - ansible.windows.win_shell: |
+        $r = Test-NetConnection -ComputerName 1.1.1.1 -Port 443 -WarningAction SilentlyContinue
+        if ($r.TcpTestSucceeded) { "REACHABLE" } else { "ISOLATED" }
+      register: iso
+      changed_when: false
+    - ansible.builtin.assert:
+        that: "'ISOLATED' in iso.stdout"
+        success_msg: "{{ inventory_hostname }} is isolated (no Internet)."
+        fail_msg: "DANGER: {{ inventory_hostname }} can reach the Internet."

@@ -1,0 +1,6 @@
+---
+# Sensible fallbacks; real values come from group_vars/all.yml (higher precedence).
+ad_ous: []
+ad_groups: []
+ad_users: []
+smb_shares: []

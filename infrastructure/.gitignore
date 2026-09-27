@@ -1,0 +1,43 @@
+# ── Secrets — NEVER commit ──────────────────────────────────────────────────
+ansible/group_vars/vault.yml
+!ansible/group_vars/vault.example.yml
+*.vault
+.ansible-secrets/
+*_vault_pass
+*.pem
+*.key
+id_ed25519*
+id_rsa*
+*.pfx
+
+# Generated credential material (coach-only, never student-visible)
+ansible/generated/
+*pool_accounts*.csv
+
+# Terraform state & local
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars           # holds Proxmox token — keep local
+!terraform/terraform.tfvars.example
+terraform/.terraform.lock.hcl
+crash.log
+
+# Large media (never in git — supplied out-of-band)
+*.iso
+*.exe
+iso/
+
+# Engagement / student output
+loot/
+scans/
+evidence/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
