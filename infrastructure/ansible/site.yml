@@ -16,7 +16,10 @@
       run_once: true
 
 - name: Common prep (all Windows hosts)
-  hosts: domain_controllers:sql_servers:workstations
+  # Includes dc2/ca/web too: common_prereqs is generic (isolation guard,
+  # timezone, hostname-to-inventory-name rename) and safe to run on them even
+  # though they have no role of their own yet — see group_vars/all.yml NOTE.
+  hosts: domain_controllers:additional_domain_controllers:certificate_authorities:web_servers:sql_servers:workstations
   gather_facts: true
   vars_files: [group_vars/vault.yml]
   roles:

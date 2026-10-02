@@ -5,12 +5,30 @@
 #    (vault.yml is gitignored; the encrypted file is safe, plaintext is not.)
 # 4. Put your vault password in ~/.ansible-secrets/larpers_vault_pass (gitignored).
 #
-# Retrieve the cloudbase-init admin password with, on the Proxmox host:
-#   qm cloudinit dump <vmid> user
+# IMPORTANT (as of the Oct 2, 2026 range build): the 7 live range VMs do NOT
+# share one admin password. Each was given its own unique, freshly generated
+# local Administrator (or, for the Win11 workstation's local account "coach")
+# password — see COACH_CREDENTIALS.md's "Range VM Administrator passwords"
+# section for the real per-VM values. Copy each one in below; inventory/hosts.yml
+# now references these per-host names instead of one shared variable.
 
-vault_windows_admin_password: "CHANGE_ME_lab_only"   # local + domain Administrator
-vault_dsrm_password: "CHANGE_ME_dsrm_lab_only"       # DC restore-mode password
-vault_mssql_sa_password: "CHANGE_ME_sa_lab_only"     # SQL 'sa' (mixed mode)
+vault_dc1_admin_password: "CHANGE_ME_lab_only"          # dc1 local Administrator (COACH_CREDENTIALS.md)
+vault_dc2_admin_password: "CHANGE_ME_lab_only"          # dc2 local Administrator
+vault_ca_admin_password: "CHANGE_ME_lab_only"           # ca local Administrator
+vault_web_admin_password: "CHANGE_ME_lab_only"          # web local Administrator
+vault_sql1_admin_password: "CHANGE_ME_lab_only"         # sql1 local Administrator
+vault_sql2_admin_password: "CHANGE_ME_lab_only"         # sql2 local Administrator
+vault_workstation_admin_password: "CHANGE_ME_lab_only"  # workstation local account "coach"
+
+# Domain Administrator password used for domain-level operations (the
+# domain_join role's domain_admin_password, and any future dc2-promotion
+# task). AD DS promotion elevates dc1's EXISTING local Administrator account
+# to be the domain's — so this should be set to the SAME value as
+# vault_dc1_admin_password above, not a new password.
+vault_windows_admin_password: "CHANGE_ME_lab_only"   # = vault_dc1_admin_password
+
+vault_dsrm_password: "CHANGE_ME_dsrm_lab_only"       # DC restore-mode password (new, your choice)
+vault_mssql_sa_password: "CHANGE_ME_sa_lab_only"     # SQL 'sa' (mixed mode, your choice)
 
 # Default password for the synthetic AD user accounts (Stage 1: strong).
 # Stage 2 replaces specific accounts with intentionally weak/known values.

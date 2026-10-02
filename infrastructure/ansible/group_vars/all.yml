@@ -27,14 +27,34 @@ branding_primary_hex: "#0065BD"          # CSUSB Coyote Blue
 branding_accent_hex: "#3DB7E4"
 
 # ── Network ──────────────────────────────────────────────────────────────────
-ip_network: "10.20.10.0/24"              # [PROPOSAL]
-gateway: "10.20.10.1"                    # [PROPOSAL] ("" if fully isolated)
-dns_primary: "10.20.10.10"               # dc1
+ip_network: "10.20.10.0/24"
+gateway: "10.20.10.1"                    # ("" if fully isolated)
+dns_primary: "10.20.10.2"                # dc1
 
+# Real, live range topology (7 VMs, VMIDs 320-326 on Proxmox node pve3) as
+# cloned/OOBE'd/static-IP'd on October 2, 2026. OS reflects the template each
+# VM was actually cloned from, not the design review's proposed mapping.
+#
+# NOTE — dc2, ca, and web are listed here (and in inventory/hosts.yml) so their
+# IPs/hostnames are tracked, but none of them has an Ansible role yet and none
+# is wired into site.yml's domain/SQL/workstation plays:
+#   - dc2: the `domain_controller` role only promotes a brand-new forest
+#     (`microsoft.ad.domain` with no DC-join mode). Pointing it at dc2 would
+#     try to create a second forest instead of joining dc2 to the one dc1
+#     creates, which would corrupt the domain. It needs a separate
+#     "additional domain controller" task set first.
+#   - ca: needs an AD CS (Enterprise Root CA) role — not written yet.
+#   - web: needs an IIS/web-portal role — not written yet.
+# These three are Stage 3/4 backlog per CSUSB_CPTC_Range_Design_Review.md
+# item 8. dc1, sql1, sql2, and workstation ARE wired into site.yml today.
 hosts:
-  dc1:  { ip: "10.20.10.10", role: dc,          os: win2019 }
-  sql1: { ip: "10.20.10.20", role: sql,         os: win2019 }
-  ws1:  { ip: "10.20.10.50", role: workstation, os: win11, persona: guest_services }
+  dc1:         { ip: "10.20.10.2", role: dc,          os: win2016 }
+  dc2:         { ip: "10.20.10.3", role: dc,          os: win2019 }   # not yet wired — see NOTE above
+  ca:          { ip: "10.20.10.4", role: ca,          os: win2019 }   # not yet wired — see NOTE above
+  web:         { ip: "10.20.10.5", role: web,         os: win2022 }   # not yet wired — see NOTE above
+  sql1:        { ip: "10.20.10.6", role: sql,         os: win2016 }
+  sql2:        { ip: "10.20.10.7", role: sql,         os: win2022 }
+  workstation: { ip: "10.20.10.8", role: workstation, os: win11, persona: guest_services }
 
 # ── Active Directory content (Stage 1) ───────────────────────────────────────
 # Synthetic only. NO real CSUSB/student/customer data anywhere.
