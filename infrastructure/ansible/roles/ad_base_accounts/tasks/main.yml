@@ -1,0 +1,83 @@
+---
+# Stage 2 — Basic Assessment. Runs against dc1 only (all AD writes in this
+# build are pinned to a single DC to avoid replication-timing races — same
+# rule domain_controller/business_data follow elsewhere in this repo).
+#
+# Adapted from CyberHawks `cyber-range` roles/ad_base_accounts (98307cc),
+# owner permission 2026-10-03 — see ../../../UPSTREAM.md. The source role's
+# 1000-account synthetic credential-pool generator is NOT ported: this range
+# only needs a handful of named findings, so the pool is replaced with the
+# small, explicit account lists in group_vars/all.yml (ad_weak_password_*,
+# ad_asrep_roast_accounts, ad_kerberoastable_accounts), re-themed to reuse
+# the existing Butters Family Farm ad_users where it made sense instead of
+# a parallel "cyberhawks.lab" identity set. Idempotent — safe to re-run.
+
+# ── Weak / reused passwords + password-spray targets ───────────────────────
+- name: "Weak passwords: set dictionary-weak passwords on the designated accounts"
+  microsoft.ad.user:
+    identity: "{{ item.sam }}"
+    password: "{{ lookup('ansible.builtin.vars', item.password_var) }}"
+    update_password: always
+    state: present
+  loop: "{{ ad_weak_password_accounts }}"
+  loop_control: { label: "{{ item.sam }}" }
+  tags: [vuln_stage2, weak_passwords, password_spray]
+
+- name: "Password spray: set a generous (spray-safe) account lockout policy"
+  ansible.windows.win_shell: >-
+    net accounts
+    /lockoutthreshold:{{ ad_password_spray_lockout_threshold }}
+    /lockoutwindow:{{ ad_password_spray_lockout_window_minutes }}
+    /lockoutduration:{{ ad_password_spray_lockout_duration_minutes }}
+  register: spray_lockout_result
+  changed_when: "'command completed successfully' in spray_lockout_result.stdout | lower"
+  tags: [vuln_stage2, password_spray]
+
+# ── AS-REP roasting ──────────────────────────────────────────────────────────
+- name: "AS-REP roast: create/converge the dedicated AS-REP-roastable account"
+  microsoft.ad.user:
+    identity: "{{ item.sam }}"
+    firstname: "{{ item.name.split(' ') | first }}"
+    surname: "{{ item.name.split(' ') | last }}"
+    sam_account_name: "{{ item.sam }}"
+    upn: "{{ item.sam }}@{{ domain_dns_name }}"
+    password: "{{ lookup('ansible.builtin.vars', item.password_var) }}"
+    update_password: always
+    password_never_expires: true
+    path: "OU={{ item.ou.split('/') | reverse | join(',OU=') }},{{ domain_dn }}"
+    state: present
+  loop: "{{ ad_asrep_roast_accounts }}"
+  loop_control: { label: "{{ item.sam }}" }
+  tags: [vuln_stage2, asrep_roast]
+
+- name: "AS-REP roast: disable Kerberos pre-authentication on that account"
+  ansible.windows.win_shell: >-
+    Import-Module ActiveDirectory;
+    Set-ADAccountControl -Identity '{{ item.sam }}' -DoesNotRequirePreAuth $true
+  register: asrep_result
+  changed_when: true
+  loop: "{{ ad_asrep_roast_accounts }}"
+  loop_control: { label: "{{ item.sam }}" }
+  tags: [vuln_stage2, asrep_roast]
+
+# ── Kerberoasting ─────────────────────────────────────────────────────────
+- name: "Kerberoast: swap the SQL service account to a crackable password"
+  microsoft.ad.user:
+    identity: "{{ item.sam }}"
+    password: "{{ lookup('ansible.builtin.vars', item.password_var) }}"
+    update_password: always
+    state: present
+  loop: "{{ ad_kerberoastable_accounts }}"
+  loop_control: { label: "{{ item.sam }}" }
+  tags: [vuln_stage2, kerberoasting]
+
+- name: "Kerberoast: register the SPN that makes the account roastable"
+  ansible.windows.win_shell: >-
+    $existing = setspn -L {{ item.sam }} | Select-String -SimpleMatch '{{ item.spn }}';
+    if (-not $existing) { setspn -S '{{ item.spn }}' {{ item.sam }}; Write-Output "SPN registered" }
+    else { Write-Output "SPN already registered" }
+  register: kerberoast_spn_result
+  changed_when: "'SPN registered' in kerberoast_spn_result.stdout"
+  loop: "{{ ad_kerberoastable_accounts }}"
+  loop_control: { label: "{{ item.sam }}" }
+  tags: [vuln_stage2, kerberoasting]

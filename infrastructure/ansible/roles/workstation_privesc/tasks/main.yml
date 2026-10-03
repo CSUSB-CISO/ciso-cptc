@@ -1,0 +1,66 @@
+---
+# Stage 2 — Basic Assessment. Runs against workstation only.
+#
+# setup_workstation_privesc.ps1 is adapted (substantially trimmed) from
+# CyberHawks `cyber-range` roles/workstation_privesc (98307cc), owner
+# permission 2026-10-03 — see ../../../UPSTREAM.md and the script's own
+# header comment for what was NOT ported. llmnr_nbtns_ensure_enabled.ps1
+# is original to this range. Idempotent — safe to re-run.
+
+# ── Straightforward privilege escalation ────────────────────────────────────
+- name: "Privesc: look up the target group's SID"
+  ansible.windows.win_shell: >-
+    (New-Object System.Security.Principal.NTAccount('{{ domain_netbios }}','{{ privesc_target_group }}')).Translate([System.Security.Principal.SecurityIdentifier]).Value
+  register: privesc_target_sid
+  changed_when: false
+  tags: [vuln_stage2, weak_service_perms, unquoted_service_path, writable_path_dir]
+
+- name: "Privesc: upload the workstation privesc setup script"
+  ansible.windows.win_copy:
+    src: setup_workstation_privesc.ps1
+    dest: "C:\\Windows\\Temp\\setup_workstation_privesc.ps1"
+  tags: [vuln_stage2, weak_service_perms, unquoted_service_path, writable_path_dir]
+
+- name: "Privesc: apply weak service perms + unquoted path + writable PATH dir"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\setup_workstation_privesc.ps1"
+  environment:
+    PRIVESC_TARGET_GROUP: "{{ domain_netbios }}\\{{ privesc_target_group }}"
+    PRIVESC_TARGET_SID: "{{ privesc_target_sid.stdout | trim }}"
+  register: privesc_result
+  changed_when: true
+  tags: [vuln_stage2, weak_service_perms, unquoted_service_path, writable_path_dir]
+
+- name: "Privesc: show setup result"
+  ansible.builtin.debug:
+    var: privesc_result.stdout_lines
+  tags: [vuln_stage2, weak_service_perms, unquoted_service_path, writable_path_dir]
+
+- name: "Privesc: remove temp script"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\setup_workstation_privesc.ps1"
+    state: absent
+  tags: [vuln_stage2, weak_service_perms, unquoted_service_path, writable_path_dir]
+
+# ── LLMNR/NBT-NS poisoning (leave Windows default enabled) ─────────────────
+- name: "LLMNR/NBT-NS: upload the ensure-enabled script"
+  ansible.windows.win_copy:
+    src: llmnr_nbtns_ensure_enabled.ps1
+    dest: "C:\\Windows\\Temp\\llmnr_nbtns_ensure_enabled.ps1"
+  tags: [vuln_stage2, llmnr_poisoning]
+
+- name: "LLMNR/NBT-NS: confirm/re-assert the (default) enabled state"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\llmnr_nbtns_ensure_enabled.ps1"
+  register: llmnr_result
+  changed_when: "'Re-enabled' in llmnr_result.stdout"
+  tags: [vuln_stage2, llmnr_poisoning]
+
+- name: "LLMNR/NBT-NS: show result"
+  ansible.builtin.debug:
+    var: llmnr_result.stdout_lines
+  tags: [vuln_stage2, llmnr_poisoning]
+
+- name: "LLMNR/NBT-NS: remove temp script"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\llmnr_nbtns_ensure_enabled.ps1"
+    state: absent
+  tags: [vuln_stage2, llmnr_poisoning]

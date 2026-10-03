@@ -1,0 +1,40 @@
+---
+# Stage 2 — Basic Assessment. Runs against web AND workstation (Stage 2 map
+# lists "SMB share enumeration/dumps" for both). Adapted from CyberHawks
+# `cyber-range` roles/smb_file_dump (98307cc), owner permission 2026-10-03
+# — see ../../../UPSTREAM.md.
+#
+# workstation also carries the "workstation" leg of the SMB credential
+# exposure finding (dc1's leg lives in ad_misc_findings) by embedding the
+# same kind of leaked-credential file in its dump share — this is the one
+# intentional cross-finding overlap in the Stage 2 map (same host, two
+# listed findings), not an unlisted duplicate.
+
+- name: "SMB share dump: upload the share-builder script"
+  ansible.windows.win_copy:
+    src: build_file_dump.ps1
+    dest: "C:\\Windows\\Temp\\build_file_dump.ps1"
+  tags: [vuln_stage2, smb_share_dump]
+
+- name: "SMB share dump: build the file dump and share it"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\build_file_dump.ps1"
+  environment:
+    DUMP_SHARE_NAME: "{{ smb_file_dump_share.name }}"
+    DUMP_SHARE_PATH: "{{ smb_file_dump_share.path }}"
+    INCLUDE_CRED_LEAK: "{{ (inventory_hostname == 'workstation') | ternary('true', 'false') }}"
+    LEAK_USERNAME: "{{ (inventory_hostname == 'workstation') | ternary(local_admin_reuse_account_name, '') }}"
+    LEAK_PASSWORD: "{{ (inventory_hostname == 'workstation') | ternary(vault_local_admin_reuse_password, '') }}"
+  register: dump_result
+  changed_when: "'Created' in dump_result.stdout"
+  tags: [vuln_stage2, smb_share_dump, smb_credential_exposure]
+
+- name: "SMB share dump: show result"
+  ansible.builtin.debug:
+    var: dump_result.stdout_lines
+  tags: [vuln_stage2, smb_share_dump]
+
+- name: "SMB share dump: remove temp script"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\build_file_dump.ps1"
+    state: absent
+  tags: [vuln_stage2, smb_share_dump]

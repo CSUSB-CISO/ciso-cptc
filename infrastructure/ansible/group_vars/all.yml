@@ -122,6 +122,89 @@ persona_profiles:
   it:             { display: "IT Support Workstation" }
   exec:           { display: "Park Manager (Executive) Workstation" }
 
+# ── Stage 2 — Basic Assessment (intentional vulnerabilities) ─────────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc) per UPSTREAM.md, under
+# the owner's out-of-band reuse permission (2026-10-03). Every finding below
+# is gated by `vuln_stage | int >= 2` in site.yml AND carries its own Ansible
+# tag (vault.example.yml documents the matching secret placeholders). No real
+# secrets live in this file — only identities/placements.
+
+# Weak/reused-password accounts (dc1) — reuses existing Stage 1 ad_users
+# above rather than inventing a parallel identity set; these three get a
+# dictionary-weak password instead of vault_ad_user_default_password. The
+# same accounts double as password-spray targets (see ad_password_spray_*
+# lockout settings below — generous on purpose so spraying doesn't lock
+# them out before students can demonstrate it).
+ad_weak_password_accounts:
+  - { sam: "c.churro", password_var: "vault_weak_password_c_churro" }
+  - { sam: "w.wrench",  password_var: "vault_weak_password_w_wrench" }
+  - { sam: "g.usher",   password_var: "vault_weak_password_g_usher" }
+
+ad_password_spray_lockout_threshold: 50        # attempts before lockout (generous = spray-safe)
+ad_password_spray_lockout_window_minutes: 30   # observation window
+ad_password_spray_lockout_duration_minutes: 30 # auto-unlock after this long
+
+# AS-REP roastable account(s) (dc1) — "Do not require Kerberos
+# preauthentication". A dedicated legacy-automation service account rather
+# than a renamed Stage 1 person, since disabling preauth is themed as an
+# old scheduled-automation account nobody re-reviewed.
+ad_asrep_roast_accounts:
+  - sam: "svc-reports"
+    name: "Reports Automation"
+    ou: "Park/ServiceAccounts"
+    password_var: "vault_asrep_svc_reports_password"
+
+# Kerberoastable account(s) (dc1, sql1) — SPN registered + crackable
+# password. svc-sql already exists as the Stage 1 SQL service account
+# (Park/ServiceAccounts, SQL-Admins) and is the natural Kerberoasting
+# target: its SPN points at sql1 and its password is swapped for a
+# crackable one here.
+ad_kerberoastable_accounts:
+  - sam: "svc-sql"
+    spn: "MSSQLSvc/sql1.{{ domain_dns_name }}:1433"
+    password_var: "vault_kerberoastable_svc_sql_password"
+
+# GPP (Group Policy Preferences) cpassword finding (dc1 SYSVOL). Creates a
+# brand-new local account via GPP's "Local Users and Groups" preference
+# (not the built-in Administrator — see roles/ad_misc_findings notes) and
+# links it to the Workstations OU. The planted password is the SAME value
+# as local_admin_reuse_password below, so finding the GPP cpassword also
+# hands over the reused local-admin credential (intentional chaining, not
+# an unrelated duplicate finding).
+gpp_target_ou: "Park/Workstations"
+gpp_gpo_name: "Workstation Local Admin Reset"
+gpp_local_account_name: "svc-helpdesk"
+
+# SMB credential exposure (dc1, workstation) — a plaintext credential left
+# on an open/misconfigured share. dc1 gets its own small IT-support share;
+# workstation's leg is layered onto the smb_file_dump share below.
+smb_credential_leak_share_dc1:
+  name: "ITSupport"
+  path: 'C:\Shares\ITSupport'
+  leak_username: "svc-reports"
+  leak_password_var: "vault_asrep_svc_reports_password"
+
+# SMB share enumeration/dumps (web, workstation) — world-readable share
+# full of realistic filler documents. workstation's copy additionally
+# embeds the credential-leak file above (dc1's SMB-credential-exposure
+# finding is mirrored here for the "workstation" host in the Stage 2 map).
+smb_file_dump_share:
+  name: "Shared"
+  path: 'C:\Shared'
+
+# Local administrator password reuse (workstation, sql1, sql2, web) — a
+# dedicated local account with the SAME password planted on all four
+# hosts, distinct from each host's own unique build-time local
+# Administrator password (COACH_CREDENTIALS.md / inventory/hosts.yml).
+# Models a reused "helpdesk" gold-image local-admin account.
+local_admin_reuse_hosts: ["workstation", "sql1", "sql2", "web"]
+local_admin_reuse_account_name: "svc-helpdesk"
+
+# Straightforward workstation privilege escalation — low-priv domain group
+# that gets the weak permissions below (rather than a single named user,
+# so the finding isn't tied to one persona's account).
+privesc_target_group: "Domain Users"
+
 # ── Safety ───────────────────────────────────────────────────────────────────
 # Refuse to run if the range can reach the Internet (checked in common_prereqs).
 enforce_isolation_check: true

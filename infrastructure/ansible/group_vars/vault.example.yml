@@ -33,3 +33,32 @@ vault_mssql_sa_password: "CHANGE_ME_sa_lab_only"     # SQL 'sa' (mixed mode, you
 # Default password for the synthetic AD user accounts (Stage 1: strong).
 # Stage 2 replaces specific accounts with intentionally weak/known values.
 vault_ad_user_default_password: "CHANGE_ME_users_lab_only"
+
+# ── Stage 2 — Basic Assessment (intentional vulnerabilities) ─────────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc), owner permission
+# 2026-10-03 — see UPSTREAM.md. Lab-only, deliberately weak/known values;
+# NEVER reuse any of these outside this isolated range.
+
+# Weak/dictionary passwords for the three Stage 1 accounts also used as
+# password-spray targets (see group_vars/all.yml ad_weak_password_accounts).
+# Pick genuinely weak/dictionary values on purpose (that's the finding) —
+# just don't reuse the SAME value across all three, or spraying one
+# password across the account list stops being an interesting exercise.
+vault_weak_password_c_churro: "CHANGE_ME_weak_lab_only"   # e.g. a season+year pattern
+vault_weak_password_w_wrench: "CHANGE_ME_weak_lab_only"   # e.g. a keyboard-walk pattern
+vault_weak_password_g_usher: "CHANGE_ME_weak_lab_only"    # e.g. a company+123 pattern
+
+# AS-REP roastable account's password (svc-reports) — also deliberately
+# weak/crackable once the AS-REP hash is obtained (that's the point).
+vault_asrep_svc_reports_password: "CHANGE_ME_asrep_lab_only"
+
+# Kerberoastable account's password (svc-sql) — this REPLACES svc-sql's
+# Stage 1 strong password once vuln_stage >= 2. Deliberately crackable.
+vault_kerberoastable_svc_sql_password: "CHANGE_ME_kerberoast_lab_only"
+
+# Local administrator password reuse — the SAME value is planted as the
+# "svc-helpdesk" local admin account's password on workstation, sql1,
+# sql2, and web (group_vars/all.yml local_admin_reuse_hosts). This is
+# ALSO the password the GPP cpassword finding (dc1 SYSVOL) reveals, so the
+# two findings intentionally chain together.
+vault_local_admin_reuse_password: "CHANGE_ME_reused_lab_only"

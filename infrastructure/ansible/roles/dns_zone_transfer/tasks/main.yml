@@ -1,0 +1,38 @@
+---
+# Stage 2 — Basic Assessment. Runs against dc1 only, by design (the finding
+# just needs "at least one DC" to permit it). Adapted from CyberHawks
+# `cyber-range` roles/dns_zone_transfer (98307cc), owner permission
+# 2026-10-03 — see ../../../UPSTREAM.md.
+#
+# NOTE (carried over from upstream, confirmed applicable here too):
+# SecureSecondaries is a per-DNS-server zone property even for an
+# AD-integrated zone — it does NOT replicate to dc2 the way the zone's
+# record data does, so dc2 still refuses zone transfer after this runs.
+# If unrestricted transfer is ever wanted from dc2 too, run this role
+# against dc2 explicitly (it is not wired into site.yml's dc2 play since
+# dc2 only gets manual promotion + dhcp_server — see group_vars/all.yml).
+
+- name: "DNS zone transfer: upload setup script"
+  ansible.windows.win_copy:
+    src: enable_zone_transfer.ps1
+    dest: "C:\\Windows\\Temp\\enable_zone_transfer.ps1"
+  tags: [vuln_stage2, dns_zone_transfer]
+
+- name: "DNS zone transfer: enable unrestricted AXFR"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\enable_zone_transfer.ps1"
+  environment:
+    ZONE_NAME: "{{ domain_dns_name }}"
+  register: zone_transfer_result
+  changed_when: "'Enabled' in zone_transfer_result.stdout"
+  tags: [vuln_stage2, dns_zone_transfer]
+
+- name: "DNS zone transfer: show result"
+  ansible.builtin.debug:
+    var: zone_transfer_result.stdout_lines
+  tags: [vuln_stage2, dns_zone_transfer]
+
+- name: "DNS zone transfer: remove temp script"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\enable_zone_transfer.ps1"
+    state: absent
+  tags: [vuln_stage2, dns_zone_transfer]

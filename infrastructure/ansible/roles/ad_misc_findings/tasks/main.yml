@@ -1,0 +1,91 @@
+---
+# Stage 2 — Basic Assessment. Runs against dc1 only.
+#
+# GPP password task adapted from CyberHawks `cyber-range`
+# roles/ad_misc_findings/files/gpp_password.ps1 (98307cc), owner permission
+# 2026-10-03 — see ../../../UPSTREAM.md. The SMB credential exposure task
+# is original to this range (no single matching source file; see the
+# comment in files/smb_credential_exposure.ps1). Idempotent — safe to re-run.
+
+# ── GPP (Group Policy Preferences) cpassword ────────────────────────────────
+- name: "GPP password: ensure the target OU exists"
+  microsoft.ad.ou:
+    name: "{{ gpp_target_ou.split('/') | last }}"
+    path: >-
+      {{ (gpp_target_ou.split('/')[:-1] | map('regex_replace', '^(.*)$', 'OU=\1') | reverse | join(',')) ~ (',' if '/' in gpp_target_ou else '') ~ domain_dn }}
+    state: present
+  tags: [vuln_stage2, gpp_password]
+
+- name: "GPP password: move workstation into the target OU"
+  ansible.windows.win_shell: >-
+    Import-Module ActiveDirectory;
+    $ouDN = 'OU={{ gpp_target_ou.split('/') | reverse | join(',OU=') }},{{ domain_dn }}';
+    $ws = Get-ADComputer 'workstation';
+    if ($ws.DistinguishedName -notlike "*$ouDN") {
+      Move-ADObject -Identity $ws.DistinguishedName -TargetPath $ouDN;
+      Write-Output "Moved workstation into target OU"
+    } else {
+      Write-Output "workstation already in target OU"
+    }
+  register: gpp_move_result
+  changed_when: "'Moved' in gpp_move_result.stdout"
+  tags: [vuln_stage2, gpp_password]
+
+- name: "GPP password: upload the GPP password script"
+  ansible.windows.win_copy:
+    src: gpp_password.ps1
+    dest: "C:\\Windows\\Temp\\gpp_password.ps1"
+  tags: [vuln_stage2, gpp_password]
+
+- name: "GPP password: create the GPO + write the cpassword preference + link it"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\gpp_password.ps1"
+  environment:
+    GPP_DOMAIN_DNS_NAME: "{{ domain_dns_name }}"
+    GPP_DOMAIN_DN: "{{ domain_dn }}"
+    GPP_TARGET_OU_DN: "OU={{ gpp_target_ou.split('/') | reverse | join(',OU=') }},{{ domain_dn }}"
+    GPP_GPO_NAME: "{{ gpp_gpo_name }}"
+    GPP_LOCAL_ACCOUNT_NAME: "{{ gpp_local_account_name }}"
+    GPP_PASSWORD: "{{ vault_local_admin_reuse_password }}"
+  register: gpp_result
+  changed_when: "'Created' in gpp_result.stdout or 'Wrote' in gpp_result.stdout or 'Linked' in gpp_result.stdout or 'Registered' in gpp_result.stdout or 'Bumped' in gpp_result.stdout"
+  tags: [vuln_stage2, gpp_password]
+
+- name: "GPP password: show result"
+  ansible.builtin.debug:
+    var: gpp_result.stdout_lines
+  tags: [vuln_stage2, gpp_password]
+
+- name: "GPP password: remove temp script (secret hygiene)"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\gpp_password.ps1"
+    state: absent
+  tags: [vuln_stage2, gpp_password]
+
+# ── SMB credential exposure (dc1 leg — see smb_file_dump for workstation) ──
+- name: "SMB credential exposure: upload the share-builder script"
+  ansible.windows.win_copy:
+    src: smb_credential_exposure.ps1
+    dest: "C:\\Windows\\Temp\\smb_credential_exposure.ps1"
+  tags: [vuln_stage2, smb_credential_exposure]
+
+- name: "SMB credential exposure: build the share + leaked credential file"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\smb_credential_exposure.ps1"
+  environment:
+    LEAK_SHARE_NAME: "{{ smb_credential_leak_share_dc1.name }}"
+    LEAK_SHARE_PATH: "{{ smb_credential_leak_share_dc1.path }}"
+    LEAK_USERNAME: "{{ smb_credential_leak_share_dc1.leak_username }}"
+    LEAK_PASSWORD: "{{ lookup('ansible.builtin.vars', smb_credential_leak_share_dc1.leak_password_var) }}"
+  register: smb_leak_result
+  changed_when: "'Created' in smb_leak_result.stdout"
+  tags: [vuln_stage2, smb_credential_exposure]
+
+- name: "SMB credential exposure: show result"
+  ansible.builtin.debug:
+    var: smb_leak_result.stdout_lines
+  tags: [vuln_stage2, smb_credential_exposure]
+
+- name: "SMB credential exposure: remove temp script"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\smb_credential_exposure.ps1"
+    state: absent
+  tags: [vuln_stage2, smb_credential_exposure]

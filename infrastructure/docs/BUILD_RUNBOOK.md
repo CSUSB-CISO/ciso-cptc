@@ -100,6 +100,10 @@ No exploits are enabled yet — that's intentional.
 ## Growing past MVP
 
 Add hosts to `terraform.tfvars` `vms` and `ansible/inventory/hosts.yml`, raise
-`vuln_stage`, and wire the (permission-gated) roles in `roles/_vuln_stubs/` into
-`site.yml`. Keep one finding per host where possible (the reference design's rule)
-and snapshot a new `stageN-clean` each time.
+`vuln_stage`. Stage 2 (Basic Assessment) is already wired into `site.yml` as real
+roles (`ad_base_accounts`, `ad_misc_findings`, `dns_zone_transfer`, `smb_file_dump`,
+`workstation_privesc`, `local_admin_reuse`) — set `vuln_stage: 2` and re-run. Stage
+3/4 are still the permission-gated stubs in `roles/_vuln_stubs/` (`mssql_misconfig`,
+`adcs_esc`); port those the same way when that work starts. Keep one finding per
+host where possible (the reference design's rule) and snapshot a new
+`stageN-clean` each time.

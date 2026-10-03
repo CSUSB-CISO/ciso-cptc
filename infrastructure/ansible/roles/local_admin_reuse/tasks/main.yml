@@ -1,0 +1,32 @@
+---
+# Stage 2 — Basic Assessment. Original to this range — no matching
+# CyberHawks source role/file (see UPSTREAM.md); models a common real-world
+# "gold image local-admin account" finding. Runs against workstation, sql1,
+# sql2 and web (group_vars/all.yml local_admin_reuse_hosts) with the SAME
+# password everywhere, independent of each host's own unique build-time
+# local Administrator password (COACH_CREDENTIALS.md). Idempotent.
+#
+# This is the SAME password the GPP cpassword finding on dc1
+# (roles/ad_misc_findings) plants for its own local account of the same
+# name — finding either one hands over the other's credential, by design.
+
+- name: "Local admin reuse: create/converge the shared local admin account"
+  ansible.windows.win_user:
+    name: "{{ local_admin_reuse_account_name }}"
+    password: "{{ vault_local_admin_reuse_password }}"
+    password_never_expires: true
+    update_password: always
+    state: present
+    groups: ["Administrators"]
+    groups_action: add
+  when: inventory_hostname in local_admin_reuse_hosts
+  tags: [vuln_stage2, local_admin_reuse]
+
+- name: "Local admin reuse: confirm host is in scope"
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} now has local admin account
+      '{{ local_admin_reuse_account_name }}' with the shared
+      vault_local_admin_reuse_password value.
+  when: inventory_hostname in local_admin_reuse_hosts
+  tags: [vuln_stage2, local_admin_reuse]

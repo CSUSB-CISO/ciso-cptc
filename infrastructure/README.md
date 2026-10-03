@@ -67,7 +67,13 @@ ansible/
     domain_join/             # join ws1 to the domain
     mssql_server/            # SQL 2019 Developer install + benign business DB
     business_data/           # synthetic business dataset (Employees, Invoices, …)
-    _vuln_stubs/             # placeholders for Stage 2–4 (pending permission)
+    ad_base_accounts/        # Stage 2: weak/spray passwords, AS-REP, Kerberoast (dc1)
+    ad_misc_findings/        # Stage 2: GPP cpassword + SMB credential exposure (dc1)
+    dns_zone_transfer/       # Stage 2: unauthenticated AXFR (dc1)
+    smb_file_dump/           # Stage 2: world-readable share dumps (web, workstation)
+    workstation_privesc/     # Stage 2: weak svc perms/unquoted path/PATH dir, LLMNR (workstation)
+    local_admin_reuse/       # Stage 2: shared local admin password (workstation/sql1/sql2/web)
+    _vuln_stubs/             # placeholders for Stage 3–4 only (mssql_misconfig, adcs_esc)
 scripts/             # snapshot.sh, reset.sh, isolation_test.sh
 docs/                # BUILD_RUNBOOK.md
 REQUIRED_INPUTS.md   # ← what I need from you to actually stand this up

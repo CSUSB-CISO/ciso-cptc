@@ -91,18 +91,53 @@
   roles:
     - dhcp_server
 
-# ── Intentional vulnerabilities (Stage >= 2) ────────────────────────────────
-# These roles are STUBS until CyberHawks reuse permission is confirmed (or they
-# are re-implemented originally). They fail loudly rather than pretend to work.
-- name: Intentional vulnerabilities (gated by vuln_stage)
-  hosts: all
+# ── Intentional vulnerabilities — Stage 2 (Basic Assessment) ────────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc) per the owner's
+# out-of-band reuse permission, 2026-10-03 — see UPSTREAM.md. Each finding
+# below is its own role (mirroring the CyberHawks source role names 1:1
+# where one exists) AND its own Ansible tag, so a coach can disable any
+# single finding with --skip-tags without rebuilding the range. The whole
+# stage is additionally gated on vuln_stage so Stage 1 builds (vuln_stage:
+# 1, the default) never touch any of this. Stage 3/4 (mssql_misconfig,
+# adcs_esc) remain STUBS — untouched, out of scope for this port.
+- name: Stage 2 — AD findings on dc1 (weak/spray passwords, AS-REP, Kerberoast)
+  hosts: domain_controllers
   gather_facts: false
   vars_files: [group_vars/vault.yml]
-  tasks:
-    - name: Stage 2+ vulnerabilities requested
-      ansible.builtin.debug:
-        msg: >-
-          vuln_stage is {{ vuln_stage }}. Stage 2+ roles are stubbed pending
-          CyberHawks reuse permission (see UPSTREAM.md). Nothing enabled.
+  roles:
+    - role: ad_base_accounts
       when: vuln_stage | int >= 2
-      run_once: true
+    - role: ad_misc_findings
+      when: vuln_stage | int >= 2
+    - role: dns_zone_transfer
+      when: vuln_stage | int >= 2
+
+- name: Stage 2 — workstation findings (privesc, LLMNR default, SMB dump)
+  hosts: workstations
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: workstation_privesc
+      when: vuln_stage | int >= 2
+    - role: smb_file_dump
+      when: vuln_stage | int >= 2
+
+- name: Stage 2 — SMB share dump on web
+  hosts: web_servers
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: smb_file_dump
+      when: vuln_stage | int >= 2
+
+- name: Stage 2 — local administrator password reuse (workstation, sql1, sql2, web)
+  hosts: workstations:sql_servers:web_servers
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: local_admin_reuse
+      when: vuln_stage | int >= 2
+
+# Stage 3 (mssql_misconfig) / Stage 4 (adcs_esc) remain STUBS — see
+# roles/_vuln_stubs/. They fail loudly rather than pretend to work, and are
+# intentionally NOT wired into any play here yet.
