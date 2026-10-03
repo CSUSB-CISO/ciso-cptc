@@ -1,5 +1,19 @@
 # dc2 — Manual Additional Domain Controller Promotion
 
+**STATUS: COMPLETE (2026-10-02).** dc2 has been promoted and verified
+healthy — `netdom query dc` lists both domain controllers, and
+`repadmin /replsummary` shows 0 fails / 5 total (0% error) in both
+directions. `dcdiag` passed every AD-specific test (partitions,
+cross-ref validation, LocatorCheck, Intersite); its only reported
+failure was a benign SystemLog warning about DNS lookups for Windows
+Update domains timing out — expected, since dc2 is isolated on
+`cptcnet` with no internet by design, not an AD health problem. dc2's
+DNS is now pointed at itself + dc1 (`127.0.0.1,10.20.10.2`) per step 5
+below. `inventory/hosts.yml` has been updated for the post-promotion
+credential switch described at the bottom of this doc. The steps below
+are kept as the record of what was run and as the runbook for any
+future dc2 rebuild/re-promotion.
+
 **Why manual, not Ansible:** the repo's `domain_controller` role uses
 `microsoft.ad.domain`, which only creates a *new forest*. Pointing it at dc2
 would try to stand up a second forest instead of joining dc2 to the one dc1
