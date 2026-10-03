@@ -1,0 +1,24 @@
+---
+# dc2 is the DHCP server (dc1 stays the forest-root DNS/DC without the extra
+# role, a common split). DNS itself needs no separate role — both dc1
+# (domain_controller role) and dc2 (manual-promotion runbook, -InstallDns)
+# already install the DNS Server feature as part of becoming a DC.
+
+# cptcnet is 10.20.10.0/24 (see group_vars/all.yml ip_network/gateway).
+# Static IPs already in use: .1 gateway, .2-.8 the 7 range hosts. The scope
+# below starts well clear of those so it's safe even if a host's IP changes,
+# and leaves room to grow (e.g. more workstation personas) without manual
+# IP assignment going forward.
+dhcp_scope_name: "cptcnet"
+dhcp_scope_network: "10.20.10.0"
+dhcp_scope_mask: "255.255.255.0"
+dhcp_scope_start: "10.20.10.50"
+dhcp_scope_end: "10.20.10.200"
+dhcp_scope_lease_duration_days: 8
+
+# Option values handed out to DHCP clients.
+dhcp_option_dns_servers:
+  - "{{ hosts.dc1.ip }}"
+  - "{{ hosts.dc2.ip }}"
+dhcp_option_domain_name: "{{ domain_dns_name }}"
+dhcp_option_router: "{{ gateway }}"

@@ -1,0 +1,70 @@
+---
+# DHCP for cptcnet, hosted on dc2 (see group_vars/all.yml NOTE: dc2 is the
+# team's choice to keep dc1, the forest root, as DNS/DC only). Requires dc2
+# to already be a domain-joined DC — i.e. the coach has completed
+# docs/dc2-manual-promotion.md — since authorizing a DHCP server in AD
+# (Add-DhcpServerInDC) needs it to already be part of the domain.
+#
+# DESIGN NOTE: DNS needs no separate role here. dc1 (domain_controller role)
+# and dc2 (manual-promotion runbook, -InstallDns) each already install and
+# configure the DNS Server feature as a side effect of becoming a DC, and AD
+# replicates the AD-integrated zone between them automatically — that's
+# already redundant DNS with no extra work.
+
+- name: Install DHCP Server feature
+  ansible.windows.win_feature:
+    name: DHCP
+    include_management_tools: true
+    state: present
+  register: dhcpfeat
+
+- name: Authorize this DHCP server in Active Directory
+  ansible.windows.win_shell: |
+    Add-DhcpServerInDC -DnsName "{{ ansible_hostname }}.{{ domain_dns_name }}" -ErrorAction Stop
+  register: dhcpauth
+  changed_when: "'already' not in (dhcpauth.stderr | default('') | lower)"
+  failed_when: dhcpauth.rc != 0 and 'already' not in (dhcpauth.stderr | default('') | lower)
+
+- name: Check whether the cptcnet scope already exists
+  ansible.windows.win_shell: |
+    (Get-DhcpServerv4Scope -ScopeId {{ dhcp_scope_network }} -ErrorAction SilentlyContinue) -ne $null
+  register: scopecheck
+  changed_when: false
+
+- name: Create the cptcnet DHCP scope
+  ansible.windows.win_shell: |
+    Add-DhcpServerv4Scope -Name "{{ dhcp_scope_name }}" `
+      -StartRange {{ dhcp_scope_start }} -EndRange {{ dhcp_scope_end }} `
+      -SubnetMask {{ dhcp_scope_mask }} `
+      -LeaseDuration {{ dhcp_scope_lease_duration_days }}.00:00:00 `
+      -State Active
+  when: "'True' not in scopecheck.stdout"
+
+- name: Set scope-level DNS server option (006)
+  ansible.windows.win_shell: |
+    Set-DhcpServerv4OptionValue -ScopeId {{ dhcp_scope_network }} -DnsServer {{ dhcp_option_dns_servers | join(',') }}
+
+- name: Set scope-level DNS domain name option (015)
+  ansible.windows.win_shell: |
+    Set-DhcpServerv4OptionValue -ScopeId {{ dhcp_scope_network }} -DnsDomain {{ dhcp_option_domain_name }}
+
+- name: Set scope-level router/gateway option (003)
+  ansible.windows.win_shell: |
+    Set-DhcpServerv4OptionValue -ScopeId {{ dhcp_scope_network }} -Router {{ dhcp_option_router }}
+  when: dhcp_option_router | length > 0
+
+- name: Ensure DHCP Server service is running + automatic
+  ansible.windows.win_service:
+    name: DHCPServer
+    start_mode: auto
+    state: started
+
+- name: Open DHCP ports on the host firewall (range-internal only)
+  community.windows.win_firewall_rule:
+    name: "DHCP Server (lab)"
+    localport: "67,68"
+    action: allow
+    direction: in
+    protocol: udp
+    state: present
+    enabled: true

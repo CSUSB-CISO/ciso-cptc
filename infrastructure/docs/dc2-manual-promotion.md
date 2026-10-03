@@ -74,9 +74,20 @@ single host. If dc2 is ever rebuilt/re-cloned, re-run these same steps.
    deviated (DSRM password choice, OU placement, etc.), and record the DSRM
    password used for dc2 in `COACH_CREDENTIALS.md` if it differs from dc1's.
 
-**After promotion:** dc2 needs nothing further from Ansible — `common_prereqs`
-already applies to it via the `additional_domain_controllers` group in
-`site.yml`, and being a second DC is the whole point. No new role is needed
-unless a coach later wants Ansible to manage OUs/users across both DCs
-identically (today `domain_controller`'s OU/group/user tasks only target dc1,
-which is fine since AD replicates that content to dc2 automatically).
+**After promotion, update the Ansible inventory login for dc2.** Once dc2 is
+a domain controller, its local SAM database goes away — `inventory/hosts.yml`'s
+`ansible_user: Administrator` / `ansible_password: {{ vault_dc2_admin_password }}`
+for dc2 stops working, because "Administrator" is now the *domain* account,
+not dc2's old local one. Change dc2's `ansible_password` to
+`{{ vault_windows_admin_password }}` (the domain Administrator password,
+already = dc1's original local Administrator password — see the comment at
+the top of `inventory/hosts.yml`).
+
+**After that, dc2 also picks up the `dhcp_server` role** (added 2026-10-02 —
+see `site.yml` and `roles/dhcp_server`), which installs and authorizes DHCP
+for `cptcnet` on dc2, so new hosts no longer need manual static-IP
+configuration. DNS needs no separate step — dc2 already installs DNS above
+via `-InstallDns`, and AD replicates the zone from dc1 automatically. No new
+role is needed for OUs/users across both DCs (today `domain_controller`'s
+OU/group/user tasks only target dc1, which is fine since AD replicates that
+content to dc2 automatically).

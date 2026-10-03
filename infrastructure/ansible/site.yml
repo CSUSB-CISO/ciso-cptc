@@ -76,6 +76,21 @@
   roles:
     - domain_join
 
+# ── DHCP for cptcnet (added 2026-10-02) ─────────────────────────────────────
+# dc2 is the DHCP server (dc1 stays forest-root DNS/DC only — a common
+# split). This play only succeeds once dc2 is an actual domain controller,
+# i.e. after the coach has run docs/dc2-manual-promotion.md by hand — until
+# then it will fail to connect/authorize and should simply be skipped
+# (comment out the play, or run with --limit to exclude it) rather than
+# treated as a site.yml regression. DNS itself needs no role here: both dc1
+# and dc2 already run DNS as a side effect of being domain controllers.
+- name: DHCP server — serve cptcnet (dc2, after its manual promotion)
+  hosts: additional_domain_controllers
+  gather_facts: true
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - dhcp_server
+
 # ── Intentional vulnerabilities (Stage >= 2) ────────────────────────────────
 # These roles are STUBS until CyberHawks reuse permission is confirmed (or they
 # are re-implemented originally). They fail loudly rather than pretend to work.
