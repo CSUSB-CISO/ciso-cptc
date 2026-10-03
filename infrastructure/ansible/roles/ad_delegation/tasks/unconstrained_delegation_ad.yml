@@ -1,0 +1,38 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc1 only (single-DC AD-write
+# convention — same rule Stage 2 roles follow; see ad_base_accounts).
+#
+# Adapted from CyberHawks `cyber-range` roles/ad_delegation/tasks/main.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md.
+# Creates the dedicated Domain Admin account whose session gets captured via
+# web's Unconstrained Delegation (RESOLVED assignment: web, not ca — see
+# CPTC_Vulnerability_Map.md), and enables that delegation on web$.
+
+- name: "Unconstrained delegation: upload delegation AD setup script to dc1"
+  ansible.windows.win_copy:
+    src: setup_delegation_ad.ps1
+    dest: "C:\\Windows\\Temp\\setup_delegation_ad.ps1"
+  tags: [vuln_stage4, unconstrained_delegation]
+
+- name: "Unconstrained delegation: create/converge DA account, enable on web$"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\setup_delegation_ad.ps1"
+  environment:
+    DA_ACCOUNT_SAM: "{{ ad_delegation_da_account.sam }}"
+    DA_ACCOUNT_NAME: "{{ ad_delegation_da_account.name }}"
+    DA_ACCOUNT_PASSWORD: "{{ vault_stage4_da_account_password }}"
+    UPN_DOMAIN: "{{ domain_dns_name }}"
+    UNCONSTRAINED_DELEGATION_COMPUTER: "{{ ad_delegation_unconstrained_host }}"
+  register: delegation_ad_result
+  changed_when: "'Created' in delegation_ad_result.stdout or 'Enabled' in delegation_ad_result.stdout"
+  tags: [vuln_stage4, unconstrained_delegation]
+
+- name: "Unconstrained delegation: show setup result"
+  ansible.builtin.debug:
+    var: delegation_ad_result.stdout_lines
+  tags: [vuln_stage4, unconstrained_delegation]
+
+- name: "Unconstrained delegation: remove temp script from dc1"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\setup_delegation_ad.ps1"
+    state: absent
+  tags: [vuln_stage4, unconstrained_delegation]

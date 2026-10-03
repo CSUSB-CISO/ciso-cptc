@@ -1,0 +1,59 @@
+---
+# Stage 4 — Advanced Identity. Runs against web. Two scheduled tasks, each
+# running as a distinct dedicated account (ntlm_relay_trigger_accounts) on a
+# 5-minute interval, each trying to reach a hostname that's never been
+# registered in DNS. Every attempt falls through to LLMNR/NBT-NS/mDNS,
+# giving students a live NTLMv2 authentication to capture with
+# Responder/ntlmrelayx -- one relayable to LDAP on a DC, the other relayable
+# to SMB on workstation, where that account is a local admin.
+#
+# Adapted from CyberHawks `cyber-range` roles/ntlm_relay_triggers/tasks/deploy_triggers.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md. Pool
+# CSV replaced with group_vars/all.yml ntlm_relay_trigger_accounts.
+
+- name: "NTLM relay: ensure the trigger payload directory exists"
+  ansible.windows.win_file:
+    path: "C:\\ProgramData\\LarpersSync"
+    state: directory
+  tags: [vuln_stage4, ntlm_relay]
+
+- name: "NTLM relay: upload HTTP/WebDAV relay trigger payload"
+  ansible.windows.win_copy:
+    src: http_relay_trigger.ps1
+    dest: "C:\\ProgramData\\LarpersSync\\http_relay_trigger.ps1"
+  tags: [vuln_stage4, ntlm_relay]
+
+- name: "NTLM relay: upload SMB relay trigger payload"
+  ansible.windows.win_copy:
+    src: smb_relay_trigger.ps1
+    dest: "C:\\ProgramData\\LarpersSync\\smb_relay_trigger.ps1"
+  tags: [vuln_stage4, ntlm_relay]
+
+- name: "NTLM relay: upload relay trigger setup script"
+  ansible.windows.win_copy:
+    src: setup_relay_triggers.ps1
+    dest: "C:\\Windows\\Temp\\setup_relay_triggers.ps1"
+  tags: [vuln_stage4, ntlm_relay]
+
+- name: "NTLM relay: deploy trigger payloads and register the two scheduled tasks"
+  ansible.windows.win_shell: >-
+    C:\Windows\Temp\setup_relay_triggers.ps1
+    -HttpTriggerUser '{{ ntlm_relay_trigger_accounts.http.sam }}'
+    -HttpTriggerPassword '{{ vault_ntlm_relay_http_password }}'
+    -SmbTriggerUser '{{ ntlm_relay_trigger_accounts.smb.sam }}'
+    -SmbTriggerPassword '{{ vault_ntlm_relay_smb_password }}'
+    -NetbiosDomain '{{ domain_netbios }}'
+  register: relay_trigger_result
+  changed_when: "'Registered' in relay_trigger_result.stdout"
+  tags: [vuln_stage4, ntlm_relay]
+
+- name: "NTLM relay: show relay trigger setup result"
+  ansible.builtin.debug:
+    var: relay_trigger_result.stdout_lines
+  tags: [vuln_stage4, ntlm_relay]
+
+- name: "NTLM relay: remove setup script from web (payload scripts stay, tasks reference them)"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\setup_relay_triggers.ps1"
+    state: absent
+  tags: [vuln_stage4, ntlm_relay]

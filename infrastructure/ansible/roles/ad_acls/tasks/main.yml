@@ -1,0 +1,42 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc1 only (single-DC AD-write
+# convention — same rule Stage 2 roles follow; see ad_base_accounts). AD
+# ACEs replicate to dc2 automatically, satisfying the finding map's "dc1,
+# dc2" host list without a second write.
+#
+# Adapted from CyberHawks `cyber-range` roles/ad_acls/tasks/grant_main.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md. Only
+# the 3 ACEs ("GenericAll/WriteDACL/WriteOwner granted to a non-admin
+# account or group") this range's finding map asks for are ported — see
+# files/grant_acls.ps1 for what was trimmed and why. The LAPS-read ACE
+# CyberHawks keeps in this same role lives in roles/laps instead here (see
+# that role's tasks/grant_overbroad_read.yml), to keep this role scoped to
+# the single "AD ACL abuse" finding.
+
+- name: "AD ACL abuse: upload ACL grant script to dc1"
+  ansible.windows.win_copy:
+    src: grant_acls.ps1
+    dest: "C:\\Windows\\Temp\\grant_acls.ps1"
+  tags: [vuln_stage4, ad_acl_abuse]
+
+- name: "AD ACL abuse: grant GenericAll/WriteDACL/WriteOwner to {{ ad_acl_abuse_principal }}"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\grant_acls.ps1"
+  environment:
+    ACL_ABUSE_PRINCIPAL_SAM: "{{ ad_acl_abuse_principal }}"
+    ACL_ABUSE_GENERICALL_TARGET_SAM: "{{ ad_acl_abuse_generic_all_target }}"
+    ACL_ABUSE_WRITEDACL_TARGET_SAM: "{{ ad_acl_abuse_write_dacl_target }}"
+    ACL_ABUSE_WRITEOWNER_TARGET_SAM: "{{ ad_acl_abuse_write_owner_target }}"
+  register: acl_result
+  changed_when: "'Granted' in acl_result.stdout"
+  tags: [vuln_stage4, ad_acl_abuse]
+
+- name: "AD ACL abuse: show grant result"
+  ansible.builtin.debug:
+    var: acl_result.stdout_lines
+  tags: [vuln_stage4, ad_acl_abuse]
+
+- name: "AD ACL abuse: remove temp script from dc1"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\grant_acls.ps1"
+    state: absent
+  tags: [vuln_stage4, ad_acl_abuse]

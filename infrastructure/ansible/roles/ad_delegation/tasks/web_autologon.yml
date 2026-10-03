@@ -1,0 +1,39 @@
+---
+# Stage 4 — Advanced Identity. Runs against web -- autologon establishes the
+# DA account's interactive session at boot, so its TGT lands in LSASS (the
+# passive Unconstrained Delegation capture path).
+#
+# Adapted from CyberHawks `cyber-range` roles/ad_delegation/tasks/web_autologon.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md.
+
+- name: "Unconstrained delegation: upload DA autologon setup script to web"
+  ansible.windows.win_copy:
+    src: setup_admin_autologon.ps1
+    dest: "C:\\Windows\\Temp\\setup_admin_autologon.ps1"
+  tags: [vuln_stage4, unconstrained_delegation]
+
+- name: "Unconstrained delegation: configure autologon for DA account on web"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\setup_admin_autologon.ps1"
+  environment:
+    DA_ACCOUNT_SAM: "{{ ad_delegation_da_account.sam }}"
+    DA_ACCOUNT_PASSWORD: "{{ vault_stage4_da_account_password }}"
+    NETBIOS_DOMAIN: "{{ domain_netbios }}"
+  register: autologon_result
+  changed_when: "'Configured autologon' in autologon_result.stdout"
+  tags: [vuln_stage4, unconstrained_delegation]
+
+- name: "Unconstrained delegation: show autologon setup result"
+  ansible.builtin.debug:
+    var: autologon_result.stdout_lines
+  tags: [vuln_stage4, unconstrained_delegation]
+
+- name: "Unconstrained delegation: remove temp script from web"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\setup_admin_autologon.ps1"
+    state: absent
+  tags: [vuln_stage4, unconstrained_delegation]
+
+- name: "Unconstrained delegation: reboot web to establish DA account's autologon session"
+  ansible.windows.win_reboot:
+    reboot_timeout: 300
+  tags: [vuln_stage4, unconstrained_delegation]

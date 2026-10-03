@@ -173,6 +173,74 @@
     - role: workstation_artifacts
       when: vuln_stage | int >= 3
 
-# Stage 4 (adcs_esc and friends) remains a STUB — see roles/_vuln_stubs/.
-# It fails loudly rather than pretend to work, and is intentionally NOT
-# wired into any play here yet.
+# ── Intentional vulnerabilities — Stage 4 (Advanced Identity) ──────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc) per the owner's
+# out-of-band reuse permission, 2026-10-03 — see UPSTREAM.md. Same pattern
+# as Stage 2/3 above: each finding is its own role AND its own Ansible tag,
+# and the whole stage is additionally gated on vuln_stage so lower-stage
+# builds never touch any of this. Replaces roles/_vuln_stubs/adcs_esc
+# (deleted; superseded by the real role below).
+#
+# RESOLVED delegation-assignment decision (2026-10-03,
+# CPTC_Vulnerability_Map.md): sql1$/sql2$ get constrained delegation; web$
+# gets unconstrained delegation (not ca), paired with Print Spooler left
+# running on dc1/dc2 for the PrinterBug coercion path into web's delegation.
+#
+# The "SQL privilege escalation + linked servers (sql2 -> sql1)" finding is
+# intentionally NOT wired in here — it depends on the Stage 3 linked-server
+# setup in roles/mssql_misconfig and is deferred pending that role's own
+# review; see UPSTREAM.md.
+#
+# ad_delegation and laps each span dc1/dc2/web and dc1/dc2/ca/sql2/web/
+# workstation respectively — rather than one role instance per host group
+# (which would re-run common setup redundantly across plays), each is
+# applied ONCE to a play covering every host it touches, with per-host
+# `when` guards inside the role's own tasks/main.yml dispatcher.
+
+- name: Stage 4 — AD delegation abuse (dc1, dc2, web)
+  hosts: domain_controllers:additional_domain_controllers:web_servers
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: ad_delegation
+      when: vuln_stage | int >= 4
+
+- name: Stage 4 — AD ACL abuse (dc1; ACEs replicate to dc2)
+  hosts: domain_controllers
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: ad_acls
+      when: vuln_stage | int >= 4
+
+- name: Stage 4 — LAPS misconfiguration (dc1, dc2, ca, sql2, web, workstation)
+  hosts: domain_controllers:additional_domain_controllers:certificate_authorities:sql_servers:web_servers:workstations
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: laps
+      when: vuln_stage | int >= 4
+
+- name: Stage 4 — AD CS (ADCS) ESC misconfiguration (dc1, ca)
+  hosts: domain_controllers:certificate_authorities
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: adcs_esc
+      when: vuln_stage | int >= 4
+
+- name: Stage 4 — NTLM relay / coercion triggers (dc1, dc2, web, workstation)
+  hosts: domain_controllers:additional_domain_controllers:web_servers:workstations
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: ntlm_relay_triggers
+      when: vuln_stage | int >= 4
+
+- name: Stage 4 — workstation coercion setup (workstation)
+  hosts: workstations
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: workstation_coercion
+      when: vuln_stage | int >= 4

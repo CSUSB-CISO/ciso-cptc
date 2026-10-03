@@ -1,0 +1,19 @@
+---
+# Stage 4 — Advanced Identity. Dispatcher — this role is applied to a play
+# whose hosts cover dc1, dc2, web, and workstation (see site.yml).
+
+- name: "Create the two relay-trigger accounts (dc1 only)"
+  ansible.builtin.include_tasks: create_accounts.yml
+  when: inventory_hostname == 'dc1'
+
+- name: "Confirm LDAP relay / broadcast-resolution prerequisites (dc1, dc2)"
+  ansible.builtin.include_tasks: confirm_prereqs.yml
+  when: inventory_hostname in ['dc1', 'dc2']
+
+- name: "Deploy the two relay-trigger scheduled tasks (web only)"
+  ansible.builtin.include_tasks: deploy_triggers.yml
+  when: inventory_hostname == 'web'
+
+- name: "Grant SMB relay trigger account local admin on workstation (workstation only)"
+  ansible.builtin.include_tasks: grant_local_admin.yml
+  when: inventory_hostname == 'workstation'

@@ -1,0 +1,14 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc1,dc2 -- Print Spooler running
+# supports the PrinterBug coercion path into web's Unconstrained Delegation
+# (ntlm_relay_triggers/workstation_coercion carry the rest of that chain).
+#
+# Adapted from CyberHawks `cyber-range` roles/ad_delegation/tasks/print_spooler.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md.
+
+- name: "Unconstrained delegation: ensure Print Spooler is running (PrinterBug coercion path)"
+  ansible.windows.win_service:
+    name: Spooler
+    start_mode: auto
+    state: started
+  tags: [vuln_stage4, unconstrained_delegation, print_spooler]

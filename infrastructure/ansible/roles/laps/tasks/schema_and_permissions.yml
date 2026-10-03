@@ -1,0 +1,76 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc2 (Server 2019 DC -- has both
+# ActiveDirectory and the in-box LAPS PowerShell module; dc1 is Server 2016
+# and lacks LAPS). Schema operations work remotely over LDAP regardless of
+# which host issues them.
+#
+# Adapted from CyberHawks `cyber-range` roles/laps/tasks/schema_and_permissions.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md.
+
+- name: "LAPS: upload schema extension script to dc2"
+  ansible.windows.win_copy:
+    src: extend_schema.ps1
+    dest: "C:\\Windows\\Temp\\extend_schema.ps1"
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: extend AD schema for Windows LAPS"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\extend_schema.ps1"
+  environment:
+    ADMIN_PASSWORD: "{{ vault_windows_admin_password }}"
+  register: schema_result
+  changed_when: "'Extended AD schema' in schema_result.stdout"
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: show schema extension result"
+  ansible.builtin.debug:
+    var: schema_result.stdout_lines
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: remove schema extension script from dc2"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\extend_schema.ps1"
+    state: absent
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: force replication of the schema change to all DCs"
+  ansible.windows.win_shell: "repadmin /syncall /AdeP"
+  register: repl_result
+  changed_when: false
+  failed_when: false
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: show replication sync result"
+  ansible.builtin.debug:
+    var: repl_result.stdout_lines
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: pause briefly for schema cache to settle after replication"
+  ansible.builtin.pause:
+    seconds: 15
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: upload self-permission grant script to dc2"
+  ansible.windows.win_copy:
+    src: grant_self_permission.ps1
+    dest: "C:\\Windows\\Temp\\grant_self_permission.ps1"
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: grant LAPS computer self-permission on the Computers container"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\grant_self_permission.ps1"
+  environment:
+    ADMIN_PASSWORD: "{{ vault_windows_admin_password }}"
+    COMPUTERS_CONTAINER_DN: "CN=Computers,{{ domain_dn }}"
+  register: perm_result
+  changed_when: "'Granted LAPS self-permission' in perm_result.stdout"
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: show self-permission grant result"
+  ansible.builtin.debug:
+    var: perm_result.stdout_lines
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: remove self-permission grant script from dc2"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\grant_self_permission.ps1"
+    state: absent
+  tags: [vuln_stage4, laps_misconfig]

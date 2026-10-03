@@ -1,0 +1,20 @@
+---
+# Stage 4 — Advanced Identity. Runs against web -- a low-priv domain account
+# is a local admin here from first boot (starter access), which combined
+# with web's Unconstrained Delegation and the DA account's autologon session
+# is the classic passive-capture scenario.
+#
+# Adapted from CyberHawks `cyber-range` roles/ad_delegation/tasks/user_local_admin_web.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md. The
+# starter account is this range's own g.usher (already a Stage 2
+# weak-password/spray target) rather than a dedicated pool account, so
+# finding g.usher's password in Stage 2 is what actually unlocks this
+# Stage 4 chain, instead of two unrelated findings.
+
+- name: "Unconstrained delegation: add web_delegation_starter_account to web's local Administrators"
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members:
+      - "{{ domain_netbios }}\\{{ ad_delegation_web_starter_account }}"
+    state: present
+  tags: [vuln_stage4, unconstrained_delegation]

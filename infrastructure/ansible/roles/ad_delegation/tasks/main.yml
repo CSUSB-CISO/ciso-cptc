@@ -1,0 +1,28 @@
+---
+# Stage 4 — Advanced Identity. Dispatcher: this role is applied to a play
+# whose hosts cover dc1, dc2 AND web (see site.yml), since the Kerberos
+# delegation finding spans all three; each sub-task file below is gated to
+# the specific host(s) it actually needs, same idiom as a single
+# `tasks/main.yml` with `when: inventory_hostname == ...` guards, just split
+# into separate files for readability (mirrors CyberHawks' own file layout
+# for this role — see ../../../UPSTREAM.md).
+
+- name: "Unconstrained delegation + DA account (dc1 only)"
+  ansible.builtin.include_tasks: unconstrained_delegation_ad.yml
+  when: inventory_hostname == 'dc1'
+
+- name: "Constrained delegation on sql1$/sql2$ (dc1 only)"
+  ansible.builtin.include_tasks: constrained_delegation.yml
+  when: inventory_hostname == 'dc1'
+
+- name: "Print Spooler for PrinterBug coercion (dc1, dc2)"
+  ansible.builtin.include_tasks: print_spooler.yml
+  when: inventory_hostname in ['dc1', 'dc2']
+
+- name: "Seed web local admin starter access (web only)"
+  ansible.builtin.include_tasks: user_local_admin_web.yml
+  when: inventory_hostname == 'web'
+
+- name: "DA account autologon on web (web only)"
+  ansible.builtin.include_tasks: web_autologon.yml
+  when: inventory_hostname == 'web'

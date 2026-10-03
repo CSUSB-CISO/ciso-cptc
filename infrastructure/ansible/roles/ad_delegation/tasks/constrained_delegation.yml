@@ -1,0 +1,32 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc1.
+#
+# Adapted from CyberHawks `cyber-range` roles/ad_delegation/tasks/constrained_delegation.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md.
+# RESOLVED assignment: sql1$/sql2$ get constrained delegation to BOTH
+# dc1/dc2 (not web — see CPTC_Vulnerability_Map.md).
+
+- name: "Constrained delegation: upload setup script to dc1"
+  ansible.windows.win_copy:
+    src: setup_constrained_delegation.ps1
+    dest: "C:\\Windows\\Temp\\setup_constrained_delegation.ps1"
+  tags: [vuln_stage4, constrained_delegation]
+
+- name: "Constrained delegation: configure on sql1$ and sql2$"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\setup_constrained_delegation.ps1"
+  environment:
+    CONSTRAINED_DELEGATION_TARGET_SPNS: "cifs/dc1.{{ domain_dns_name }},cifs/dc2.{{ domain_dns_name }}"
+  register: constrained_result
+  changed_when: "'Set ' in constrained_result.stdout"
+  tags: [vuln_stage4, constrained_delegation]
+
+- name: "Constrained delegation: show result"
+  ansible.builtin.debug:
+    var: constrained_result.stdout_lines
+  tags: [vuln_stage4, constrained_delegation]
+
+- name: "Constrained delegation: remove temp script from dc1"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\setup_constrained_delegation.ps1"
+    state: absent
+  tags: [vuln_stage4, constrained_delegation]

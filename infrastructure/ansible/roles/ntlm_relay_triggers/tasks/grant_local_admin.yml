@@ -1,0 +1,17 @@
+---
+# Stage 4 — Advanced Identity. Runs against workstation. The SMB relay
+# trigger's identity needs to be a local admin somewhere other than where
+# the trigger itself runs, so a successful relay is worth something more
+# than just proving the technique.
+#
+# Adapted from CyberHawks `cyber-range` roles/ntlm_relay_triggers/tasks/grant_local_admin.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md. Pool
+# CSV lookup replaced with group_vars/all.yml ntlm_relay_trigger_accounts.
+
+- name: "NTLM relay: add SMB relay trigger account to workstation's local Administrators group"
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members:
+      - "{{ domain_netbios }}\\{{ ntlm_relay_trigger_accounts.smb.sam }}"
+    state: present
+  tags: [vuln_stage4, ntlm_relay]

@@ -1,0 +1,31 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc1.
+#
+# Adapted from CyberHawks `cyber-range` roles/adcs_esc_templates/tasks/create_templates.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md.
+
+- name: "ADCS ESC: upload ESC1 template build script to dc1"
+  ansible.windows.win_copy:
+    src: build_esc1_template.ps1
+    dest: "C:\\Windows\\Temp\\build_esc1_template.ps1"
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: build the ESC1 template"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\build_esc1_template.ps1"
+  environment:
+    ESC1_TEMPLATE_NAME: "{{ adcs_esc1_template_name }}"
+    ESC1_ENROLL_GROUP: "{{ adcs_esc1_enroll_group }}"
+  register: esc1_build_result
+  changed_when: "'Created' in esc1_build_result.stdout"
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: show template build result"
+  ansible.builtin.debug:
+    var: esc1_build_result.stdout_lines
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: remove temp script from dc1"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\build_esc1_template.ps1"
+    state: absent
+  tags: [vuln_stage4, adcs_esc]

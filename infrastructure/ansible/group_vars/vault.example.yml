@@ -93,3 +93,25 @@ vault_web_portal_svc_web_local_password: "CHANGE_ME_svcweb_local_lab_only"
 # leak (roles/workstation_artifacts) — not a real secret format, just
 # needs to look plausible in a grep/strings pass.
 vault_workstation_app_config_api_key: "CHANGE_ME_apikey_lab_only"
+
+# ── Stage 4 — Advanced Identity (intentional vulnerabilities) ──────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc), owner permission
+# 2026-10-03 — see UPSTREAM.md. Lab-only, deliberately weak/known values;
+# NEVER reuse any of these outside this isolated range.
+
+# "p.manager" Domain Admin account's password (roles/ad_delegation) — never
+# meant to be known/guessed directly; it's only reached via the autologon
+# session its own TGT leaves in web's LSASS, captured through web's
+# Unconstrained Delegation (coerced via dc1/dc2's Print Spooler). Pick a
+# genuinely strong value — the point of this finding is that delegation
+# abuse bypasses password strength entirely.
+vault_stage4_da_account_password: "CHANGE_ME_da_lab_only"
+
+# The two dedicated NTLM-relay-trigger service accounts' passwords
+# (roles/ntlm_relay_triggers) — svc-filesync (HTTP/WebDAV trigger, relayable
+# to LDAP on a DC) and svc-backupsync (SMB trigger, relayable to SMB on
+# workstation where it's a local admin). Their value doesn't matter for the
+# finding itself (the NTLMv2 authentication attempt is captured/relayed,
+# never cracked offline) — any lab-only value works.
+vault_ntlm_relay_http_password: "CHANGE_ME_relay_http_lab_only"
+vault_ntlm_relay_smb_password: "CHANGE_ME_relay_smb_lab_only"

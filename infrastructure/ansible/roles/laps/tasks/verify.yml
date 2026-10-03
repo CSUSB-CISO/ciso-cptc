@@ -1,0 +1,23 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc1 -- confirms the managed
+# hosts actually rotated a password, not just that the policy/registry keys
+# were set.
+#
+# Adapted from CyberHawks `cyber-range` roles/laps/tasks/verify.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md. Host
+# list templated from laps_managed_hosts instead of two hardcoded names.
+
+- name: "LAPS: confirm LAPS passwords are populated for managed hosts"
+  ansible.windows.win_shell: >-
+    Import-Module LAPS;
+    foreach ($h in @({{ laps_managed_hosts | map('regex_replace', '^(.*)$', "'\1'") | join(',') }})) {
+      "$h`: " + [string](Get-LapsADPassword -Identity $h -ErrorAction Stop).PasswordUpdateTime
+    }
+  register: laps_verify
+  changed_when: false
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS: show verification result"
+  ansible.builtin.debug:
+    var: laps_verify.stdout_lines
+  tags: [vuln_stage4, laps_misconfig]

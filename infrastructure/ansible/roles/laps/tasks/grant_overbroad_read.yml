@@ -1,0 +1,38 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc2 -- needs the LAPS module for
+# the msLAPS-Password schemaIDGUID lookups. This is the actual "LAPS
+# misconfiguration" finding: an over-broad direct read ACE on workstation's
+# confidential LAPS password attribute, granted to the Stage 2
+# weak-password/spray target g.usher instead of an admin group — so
+# cracking g.usher's password in Stage 2 also hands over workstation's
+# rotating local-admin password in Stage 4.
+#
+# Adapted from CyberHawks `cyber-range` roles/ad_acls/tasks/grant_laps_read.yml
+# (98307cc), owner permission 2026-10-03 -- see ../../../UPSTREAM.md.
+
+- name: "LAPS misconfig: upload over-broad read-permission grant script to dc2"
+  ansible.windows.win_copy:
+    src: grant_overbroad_laps_read.ps1
+    dest: "C:\\Windows\\Temp\\grant_overbroad_laps_read.ps1"
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS misconfig: grant {{ laps_overbroad_read_principal }} read access to {{ laps_overbroad_read_target }}'s LAPS password"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\grant_overbroad_laps_read.ps1"
+  environment:
+    ADMIN_PASSWORD: "{{ vault_windows_admin_password }}"
+    LAPS_OVERBROAD_TARGET_DN: "CN={{ laps_overbroad_read_target }},CN=Computers,{{ domain_dn }}"
+    LAPS_OVERBROAD_PRINCIPAL_SAM: "{{ laps_overbroad_read_principal }}"
+  register: laps_read_result
+  changed_when: "'Granted' in laps_read_result.stdout"
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS misconfig: show over-broad read grant result"
+  ansible.builtin.debug:
+    var: laps_read_result.stdout_lines
+  tags: [vuln_stage4, laps_misconfig]
+
+- name: "LAPS misconfig: remove temp script from dc2"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\grant_overbroad_laps_read.ps1"
+    state: absent
+  tags: [vuln_stage4, laps_misconfig]

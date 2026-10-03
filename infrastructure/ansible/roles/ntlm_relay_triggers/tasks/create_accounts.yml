@@ -1,0 +1,22 @@
+---
+# Stage 4 — Advanced Identity. Runs against dc1. Original to this port (no
+# matching CyberHawks task file -- their accounts came pre-created by the
+# 1000-account pool generator this range never ports; see UPSTREAM.md).
+# Creates the two dedicated relay-trigger service accounts referenced by
+# deploy_triggers.yml / grant_local_admin.yml.
+
+- name: "NTLM relay: create/converge the two relay-trigger accounts"
+  microsoft.ad.user:
+    identity: "{{ item.sam }}"
+    firstname: "{{ item.name.split(' ') | first }}"
+    surname: "{{ item.name.split(' ') | last }}"
+    sam_account_name: "{{ item.sam }}"
+    upn: "{{ item.sam }}@{{ domain_dns_name }}"
+    password: "{{ lookup('ansible.builtin.vars', item.password_var) }}"
+    update_password: always
+    password_never_expires: true
+    path: "OU={{ item.ou.split('/') | reverse | join(',OU=') }},{{ domain_dn }}"
+    state: present
+  loop: "{{ [ntlm_relay_trigger_accounts.http, ntlm_relay_trigger_accounts.smb] }}"
+  loop_control: { label: "{{ item.sam }}" }
+  tags: [vuln_stage4, ntlm_relay]

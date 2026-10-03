@@ -1,0 +1,56 @@
+---
+# Stage 4 — Advanced Identity. Runs against ca. Depends on create_template.yml
+# (dc1) having already run.
+#
+# Adapted from CyberHawks `cyber-range` roles/adcs_esc_templates/tasks/publish_templates.yml
+# + the ESC8 confirmation block of ca_config_early.yml (98307cc), owner
+# permission 2026-10-03 -- see ../../../UPSTREAM.md.
+
+- name: "ADCS ESC: upload ESC1 template publish script to ca"
+  ansible.windows.win_copy:
+    src: publish_esc1_template.ps1
+    dest: "C:\\Windows\\Temp\\publish_esc1_template.ps1"
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: publish the ESC1 template to the CA"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\publish_esc1_template.ps1"
+  environment:
+    ADMIN_PASSWORD: "{{ vault_ca_admin_password }}"
+    ESC1_TEMPLATE_NAME: "{{ adcs_esc1_template_name }}"
+  register: esc1_publish_result
+  changed_when: "'Published' in esc1_publish_result.stdout"
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: show publish result"
+  ansible.builtin.debug:
+    var: esc1_publish_result.stdout_lines
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: remove publish script from ca"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\publish_esc1_template.ps1"
+    state: absent
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: upload ESC8 confirmation script to ca"
+  ansible.windows.win_copy:
+    src: confirm_esc8.ps1
+    dest: "C:\\Windows\\Temp\\confirm_esc8.ps1"
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: confirm ESC8 (Web Enrollment over plain HTTP)"
+  ansible.windows.win_shell: "C:\\Windows\\Temp\\confirm_esc8.ps1"
+  register: esc8_result
+  changed_when: false
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: show ESC8 confirmation result"
+  ansible.builtin.debug:
+    var: esc8_result.stdout_lines
+  tags: [vuln_stage4, adcs_esc]
+
+- name: "ADCS ESC: remove ESC8 confirmation script from ca"
+  ansible.windows.win_file:
+    path: "C:\\Windows\\Temp\\confirm_esc8.ps1"
+    state: absent
+  tags: [vuln_stage4, adcs_esc]

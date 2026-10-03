@@ -233,6 +233,79 @@ privesc_target_group: "Domain Users"
 # same .bak onto web's own open share) — see both roles' tasks for the
 # control-node fetch/copy mechanics.
 
+# ── Stage 4 — Advanced Identity (intentional vulnerabilities) ────────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc) per UPSTREAM.md, under
+# the owner's out-of-band reuse permission (2026-10-03). Every finding below
+# is gated by `vuln_stage | int >= 4` in site.yml AND carries its own Ansible
+# tag (vault.example.yml documents the matching secret placeholders). RESOLVED
+# delegation-assignment decision (2026-10-03, CPTC_Vulnerability_Map.md):
+# sql1$/sql2$ get CONSTRAINED delegation; web$ gets UNCONSTRAINED delegation
+# (paired with Print Spooler left running on dc1/dc2 for the PrinterBug
+# coercion path into web's delegation). The SQL privilege escalation +
+# linked-servers finding (sql2 -> sql1) is OUT OF SCOPE here — it depends on
+# the Stage 3 linked-server setup (roles/mssql_misconfig) and is deferred.
+
+# Unconstrained delegation (web) + dedicated Domain Admin account whose
+# autologon session on web is what actually gets captured. Not a Stage 1/2
+# starter persona — themed as a senior "Park Manager" executive account,
+# matching the existing persona_profiles.exec naming.
+ad_delegation_da_account:
+  sam: "p.manager"
+  name: "Park Manager"
+ad_delegation_unconstrained_host: "web"
+# Low-priv account seeded as a local admin on web ("starter access") —
+# reuses Stage 2's g.usher (already a weak-password/spray target) instead of
+# a dedicated pool account, so the two findings chain: cracking g.usher's
+# password in Stage 2 is what unlocks local admin on web, which is what
+# exposes the DA account's autologon session via web's Unconstrained
+# Delegation here in Stage 4.
+ad_delegation_web_starter_account: "g.usher"
+
+# Constrained delegation (sql1$, sql2$ -> dc1/dc2 cifs). sql1 keeps protocol
+# transition OFF (classic constrained delegation); sql2 has it ON (T2A4D) —
+# same split CyberHawks uses, kept so both delegation variants are present
+# in the range. (Target SPNs are built directly in ad_delegation's
+# constrained_delegation.yml from domain_dns_name — no separate var needed.)
+
+# AD ACL abuse (dc1, dc2 — AD ACEs replicate, so one write reaches both).
+# Principal reuses g.usher (see above) so this finding chains off the same
+# Stage 2 weak-password credential rather than a parallel attacker account.
+# Targets are existing Stage 1 Butters Family Farm identities.
+ad_acl_abuse_principal: "g.usher"
+ad_acl_abuse_generic_all_target: "i.tanaka"    # IT-Admins — full control, including a shadow-credential takeover
+ad_acl_abuse_write_dacl_target: "a.finance"    # Finance-Users — can grant itself further rights
+ad_acl_abuse_write_owner_target: "w.wrench"    # Maintenance — can take ownership, then grant itself rights
+
+# LAPS (workstation + the other hosts new enough to run the Windows LAPS
+# client — dc1/sql1 are Server 2016 and don't support it). Over-broad read
+# again goes to g.usher, on workstation specifically (per the finding map).
+laps_managed_hosts: ["workstation", "ca", "sql2", "web"]
+laps_overbroad_read_principal: "g.usher"
+laps_overbroad_read_target: "workstation"
+
+# AD CS (ADCS) ESC misconfiguration (ca) — ESC1 template (enrollee supplies
+# subject, client-auth EKU, Enroll granted to Domain Users). ESC8 (HTTP Web
+# Enrollment) is a pre-existing property of roles/adcs_ca, only confirmed
+# here, not built.
+adcs_esc1_template_name: "ESC1Template"
+adcs_esc1_enroll_group: "Domain Users"
+
+# NTLM relay / coercion (ca, coerced via dc1/dc2 Print Spooler; web runs the
+# triggers). Two dedicated accounts — not Stage 1/2 personas — since their
+# whole job is an unattended scheduled task authenticating outward on a
+# schedule, not a human identity.
+ntlm_relay_trigger_accounts:
+  http:
+    sam: "svc-filesync"
+    name: "File Sync Service"
+    ou: "Park/ServiceAccounts"
+    password_var: "vault_ntlm_relay_http_password"
+  smb:
+    sam: "svc-backupsync"
+    name: "Backup Sync Service"
+    ou: "Park/ServiceAccounts"
+    password_var: "vault_ntlm_relay_smb_password"
+
 # ── Safety ───────────────────────────────────────────────────────────────────
 # Refuse to run if the range can reach the Internet (checked in common_prereqs).
 enforce_isolation_check: true

@@ -1,0 +1,17 @@
+---
+# Stage 4 — Advanced Identity. Dispatcher — this role is applied to a play
+# whose hosts cover dc1 (template object creation) and ca (publish to the
+# CA + ESC8 confirmation). See site.yml.
+#
+# Replaces _vuln_stubs/adcs_esc. Scope trimmed from CyberHawks' full
+# ESC1-ESC17 build to this range's finding map: "at least one ESC1 or ESC8
+# template misconfig" on ca — see ../../../UPSTREAM.md for what was left out
+# and why.
+
+- name: "Build ESC1 template (dc1 only)"
+  ansible.builtin.include_tasks: create_template.yml
+  when: inventory_hostname == 'dc1'
+
+- name: "Publish ESC1 template + confirm ESC8 (ca only)"
+  ansible.builtin.include_tasks: publish_and_confirm.yml
+  when: inventory_hostname == 'ca'

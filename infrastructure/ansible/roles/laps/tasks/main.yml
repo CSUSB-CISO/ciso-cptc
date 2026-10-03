@@ -1,0 +1,22 @@
+---
+# Stage 4 — Advanced Identity. Dispatcher — this role is applied to a play
+# whose hosts cover dc1, dc2, ca, sql2, web, and workstation (see site.yml),
+# since the LAPS build spans dc2 (schema/permissions), the managed hosts
+# (enable/rotate), dc2 again (over-broad read ACE), and dc1 (verify). Each
+# sub-task file is gated to the host(s) it needs.
+
+- name: "Extend schema + grant computer self-permission (dc2 only)"
+  ansible.builtin.include_tasks: schema_and_permissions.yml
+  when: inventory_hostname == 'dc2'
+
+- name: "Enable Windows LAPS + rotate (managed hosts only)"
+  ansible.builtin.include_tasks: enable_on_targets.yml
+  when: inventory_hostname in laps_managed_hosts
+
+- name: "Grant over-broad LAPS password read (dc2 only)"
+  ansible.builtin.include_tasks: grant_overbroad_read.yml
+  when: inventory_hostname == 'dc2'
+
+- name: "Verify LAPS passwords rotated (dc1 only)"
+  ansible.builtin.include_tasks: verify.yml
+  when: inventory_hostname == 'dc1'
