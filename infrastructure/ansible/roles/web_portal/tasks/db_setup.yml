@@ -1,0 +1,28 @@
+---
+# Stage 3 — sql1-side portal database. Adapted from CyberHawks
+# `cyber-range` roles/web_portal/tasks/db_setup.yml (98307cc), owner
+# permission 2026-10-03 — see ../../../UPSTREAM.md. Runs only when
+# inventory_hostname == 'sql1'.
+
+- name: "sql1: stage the GuestPortal DB setup script"
+  ansible.windows.win_template:
+    src: create_portal_db.sql.j2
+    dest: 'C:\Windows\Temp\create_portal_db.sql'
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "sql1: apply GuestPortal DB setup"
+  ansible.windows.win_shell: 'sqlcmd -S localhost -E -i C:\Windows\Temp\create_portal_db.sql'
+  register: db_result
+  changed_when: true
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "sql1: show DB setup result"
+  ansible.builtin.debug:
+    var: db_result.stdout_lines
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "sql1: remove staged DB setup script"
+  ansible.windows.win_file:
+    path: 'C:\Windows\Temp\create_portal_db.sql'
+    state: absent
+  tags: [vuln_stage3, web_portal_config_leak]

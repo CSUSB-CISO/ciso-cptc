@@ -1,0 +1,76 @@
+---
+# Stage 3 ("Business Services") — Windows 11 user artifacts on
+# `workstation` (table rows "Windows 11 user artifacts" and "Application
+# config files (web, workstation)"). Original to this range -- searching
+# /tmp/cyberhawks-ref/ansible/roles for "linked.server|\.bak|browser.*cred|
+# recent.*file" turned up no matching browser-credential or recent-files
+# source file (see report), so these are written natively rather than
+# ported, using the same idempotent win_copy-with-content idiom
+# roles/iis_web and roles/smb_file_dump already use in this repo.
+#
+# DESIGN NOTE: a real engagement would find these under a logged-in user's
+# own profile. This role deliberately targets C:\Users\Public instead (see
+# defaults/main.yml) so it stays idempotent regardless of whether/which
+# domain persona has ever interactively logged into `workstation` --
+# consistent with how other Stage 2/3 roles avoid depending on login
+# state. A coach wanting per-persona realism can point
+# workstation_artifacts_root at a real profile path once that persona's
+# first logon is guaranteed.
+
+- name: "workstation: ensure the artifact folders exist"
+  ansible.windows.win_file:
+    path: "{{ workstation_artifacts_root }}\\{{ item }}"
+    state: directory
+  loop:
+    - Documents
+    - Downloads
+  tags: [vuln_stage3, workstation_artifacts]
+
+# "Saved browser creds" -- modeled as a password-manager/browser export
+# CSV (Chrome/Edge's own "Export passwords" feature produces exactly this
+# shape: name,url,username,password) that a user saved as a personal
+# backup instead of deleting. Ties into the existing Stage 2/3 local-admin
+# and portal-login findings rather than inventing unrelated creds.
+- name: "workstation: drop a saved-browser-passwords export in Downloads"
+  ansible.windows.win_copy:
+    content: |
+      name,url,username,password
+      Butters Family Farm Portal,http://web.{{ domain_dns_name }}/Default.aspx,admin,abc123
+      IT Helpdesk Local Admin,http://workstation.{{ domain_dns_name }},{{ local_admin_reuse_account_name }},{{ vault_local_admin_reuse_password }}
+    dest: "{{ workstation_artifacts_root }}\\Downloads\\chrome_passwords_backup.csv"
+  tags: [vuln_stage3, workstation_browser_creds]
+
+# "Recent files, notes referencing other hosts" -- a plausible IT-support
+# scratch note. References sql1 (the Kerberoastable svc-sql account the
+# Stage 2 map already targets) so finding it on workstation gives a
+# pointer toward sql1, not a brand-new unrelated credential.
+- name: "workstation: drop an IT-support scratch note referencing other hosts"
+  ansible.windows.win_copy:
+    content: |
+      Quick notes - do not leave on desktop long term!
+
+      - sql1 SQL service runs as THELARPERS\svc-sql, ops team has the
+        password in LastPass under "SQL prod service account"
+      - Portal DB backups land in \\sql1\Backups and \\web\WebBackups,
+        ops copies them there until the new backup server is set up
+      - If guest portal login breaks again check Web.config on web, same
+        folder has an old .bak from before we fixed the connection string
+
+      - TODO: rotate svc-helpdesk password everywhere (workstation, sql1,
+        sql2, web) -- IT ticket #4471
+    dest: "{{ workstation_artifacts_root }}\\Documents\\IT_notes.txt"
+  tags: [vuln_stage3, workstation_recent_files]
+
+# Application config files (workstation): a local app/API config left in
+# a user-profile folder with a plaintext connection string, mirroring the
+# web-side leak (roles/web_portal) but for a small desktop ticketing tool
+# persona workers use on this box.
+- name: "workstation: drop a local app config with a plaintext connection string"
+  ansible.windows.win_copy:
+    content: |
+      [GuestServicesTicketingTool]
+      ApiBaseUrl=http://web.{{ domain_dns_name }}/api
+      ApiKey=bff-ticketing-{{ vault_workstation_app_config_api_key }}
+      SqlConnectionString=Server=sql1.{{ domain_dns_name }};Database={{ web_portal_db_name | default('GuestPortal') }};User Id=svc-web;Password={{ vault_web_portal_svc_web_password }};
+    dest: "{{ workstation_artifacts_root }}\\Documents\\ticketing_tool.ini"
+  tags: [vuln_stage3, workstation_app_config_leak]

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Stage 3 ("Business Services") — finding: plaintext connection string /
+  service-account credential in an application config file. IIS blocks
+  direct requests for "Web.config" itself, but NOT for the differently
+  named Web.config.bak copy left right next to it (see tasks/site_setup.yml)
+  — that's the intended leak path, not this file's content.
+-->
+<configuration>
+  <connectionStrings>
+    <add name="GuestPortal" connectionString="Server=sql1.{{ domain_dns_name }};Database={{ web_portal_db_name }};User Id=svc-web;Password={{ vault_web_portal_svc_web_password }};" providerName="System.Data.SqlClient" />
+  </connectionStrings>
+  <system.web>
+    <compilation debug="false" targetFramework="4.5" />
+    <httpRuntime targetFramework="4.5" />
+    <sessionState mode="InProc" timeout="20" />
+  </system.web>
+</configuration>

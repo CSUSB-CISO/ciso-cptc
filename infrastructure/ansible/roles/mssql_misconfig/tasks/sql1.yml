@@ -1,0 +1,98 @@
+---
+# Stage 3 — sql1 misconfigurations. Adapted from CyberHawks `cyber-range`
+# roles/mssql_misconfig (98307cc), owner permission 2026-10-03 — see
+# ../../../UPSTREAM.md. Runs only when inventory_hostname == 'sql1' (this
+# role is applied to the whole sql_servers group — see tasks/main.yml).
+
+- name: "sql1: stage the weak-sa / linked-server T-SQL script"
+  ansible.windows.win_template:
+    src: mssql_config_sql1.sql.j2
+    dest: 'C:\Windows\Temp\mssql_config_sql1.sql'
+  tags: [vuln_stage3, mssql_weak_sa, mssql_linked_server]
+
+- name: "sql1: apply weak sa password + sql1->sql2 linked server"
+  ansible.windows.win_shell: 'sqlcmd -S localhost -E -i C:\Windows\Temp\mssql_config_sql1.sql'
+  register: sql1_misconfig
+  changed_when: true
+  tags: [vuln_stage3, mssql_weak_sa, mssql_linked_server]
+
+- name: "sql1: show T-SQL result"
+  ansible.builtin.debug:
+    var: sql1_misconfig.stdout_lines
+  tags: [vuln_stage3, mssql_weak_sa, mssql_linked_server]
+
+- name: "sql1: remove staged T-SQL script"
+  ansible.windows.win_file:
+    path: 'C:\Windows\Temp\mssql_config_sql1.sql'
+    state: absent
+  tags: [vuln_stage3, mssql_weak_sa, mssql_linked_server]
+
+# Over-privileged service account: the SQL Server engine service is switched
+# from its Stage 1 built-in service identity to the domain svc-sql account
+# (already Stage 1 "SQL-Admins"/Stage 2 Kerberoast target — see
+# group_vars/all.yml ad_users / ad_kerberoastable_accounts) AND svc-sql is
+# added to the local Administrators group, which SQL Server service
+# accounts never need. Reuses svc-sql rather than inventing a new domain
+# account, so this finding chains with the existing Kerberoastable-account
+# finding instead of duplicating it.
+- name: "sql1: add svc-sql to the local Administrators group (over-privileged)"
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members:
+      - "{{ domain_netbios }}\\svc-sql"
+    state: present
+  tags: [vuln_stage3, mssql_svc_overprivileged]
+
+- name: "sql1: run the MSSQLSERVER service as svc-sql"
+  ansible.windows.win_shell: |
+    $acct = "{{ domain_netbios }}\svc-sql"
+    $current = (Get-CimInstance Win32_Service -Filter "Name='MSSQLSERVER'").StartName
+    if ($current -ne $acct) {
+      sc.exe config MSSQLSERVER obj= $acct password= "{{ vault_kerberoastable_svc_sql_password }}" | Out-Null
+      Restart-Service -Name MSSQLSERVER -Force
+      Start-Sleep -Seconds 5
+      Write-Output "Changed MSSQLSERVER service account to $acct"
+    } else {
+      Write-Output "MSSQLSERVER already runs as $acct"
+    }
+  register: svc_result
+  changed_when: "'Changed' in svc_result.stdout"
+  tags: [vuln_stage3, mssql_svc_overprivileged]
+
+# Database backup on an open share: a real sqlcmd BACKUP of the Stage 1
+# fictional business DB (roles/business_data) dropped into a world-readable
+# share. Original to this range (no "backup on open share" source file
+# found under /tmp/cyberhawks-ref/ansible/roles — see report for the
+# search), implemented natively rather than ported.
+- name: "sql1: create the open Backups share folder"
+  ansible.windows.win_file:
+    path: "{{ mssql_misconfig_backup_share.path }}"
+    state: directory
+  tags: [vuln_stage3, mssql_backup_share]
+
+- name: "sql1: back up {{ mssql_business_db }} into the open share"
+  ansible.windows.win_shell: >-
+    sqlcmd -S localhost -Q "BACKUP DATABASE [{{ mssql_business_db }}] TO DISK = N'{{ mssql_misconfig_backup_share.path }}\{{ mssql_business_db }}.bak' WITH INIT;"
+  register: backup_result
+  changed_when: true
+  tags: [vuln_stage3, mssql_backup_share]
+
+- name: "sql1: share the Backups folder (read: Everyone)"
+  ansible.windows.win_share:
+    name: "{{ mssql_misconfig_backup_share.name }}"
+    path: "{{ mssql_misconfig_backup_share.path }}"
+    read: ["Everyone"]
+    state: present
+  tags: [vuln_stage3, mssql_backup_share]
+
+# A copy of the SAME .bak also turns up on web's open share (table row
+# "Database backups on shared folders (sql1, web)") -- modeling an ops
+# team that copied the backup there "for safekeeping". Fetched to the
+# control node (infrastructure/ansible/generated/, gitignored) so
+# roles/web_portal can push the identical file onto web.
+- name: "sql1: fetch the .bak to the control node for the web-share copy"
+  ansible.builtin.fetch:
+    src: "{{ mssql_misconfig_backup_share.path }}\\{{ mssql_business_db }}.bak"
+    dest: "{{ playbook_dir }}/generated/{{ mssql_business_db }}.bak"
+    flat: true
+  tags: [vuln_stage3, mssql_backup_share]

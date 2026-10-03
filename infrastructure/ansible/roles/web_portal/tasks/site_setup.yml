@@ -1,0 +1,142 @@
+---
+# Stage 3 — web-side portal deployment. Adapted from CyberHawks
+# `cyber-range` roles/web_portal/tasks/site_setup.yml (98307cc), owner
+# permission 2026-10-03 — see ../../../UPSTREAM.md. Runs only when
+# inventory_hostname == 'web'; replaces the Stage 1 static placeholder
+# homepage (roles/iis_web) with the real (deliberately vulnerable) portal.
+
+- name: "web: install the ASP.NET features the portal needs"
+  ansible.windows.win_feature:
+    name:
+      - Web-Asp-Net45
+      - Web-Net-Ext45
+      - Web-ISAPI-Ext
+      - Web-ISAPI-Filter
+    state: present
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "web: deploy Default.aspx (portal login)"
+  ansible.windows.win_copy:
+    src: Default.aspx
+    dest: 'C:\inetpub\wwwroot\Default.aspx'
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "web: deploy Home.aspx (portal landing page)"
+  ansible.windows.win_copy:
+    src: Home.aspx
+    dest: 'C:\inetpub\wwwroot\Home.aspx'
+  tags: [vuln_stage3, web_portal_config_leak]
+
+# The intentional leak: the real Web.config holds the svc-web connection
+# string/password in plaintext (table row "Application config files
+# (web, workstation)"). IIS's built-in hiddenSegments handler blocks
+# direct requests for "Web.config" by name, but not for a differently
+# named .bak copy sitting right beside it.
+- name: "web: deploy Web.config with the real svc-web connection string"
+  ansible.windows.win_template:
+    src: Web.config.j2
+    dest: 'C:\inetpub\wwwroot\Web.config'
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "web: leave a Web.config.bak copy alongside the live Web.config"
+  ansible.windows.win_copy:
+    remote_src: true
+    src: 'C:\inetpub\wwwroot\Web.config'
+    dest: 'C:\inetpub\wwwroot\Web.config.bak'
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "web: register a MIME type for .bak so IIS will actually serve it"
+  ansible.windows.win_shell: >-
+    & "$env:windir\system32\inetsrv\appcmd.exe" set config /section:staticContent /+"[fileExtension='.bak',mimeType='application/octet-stream']"
+  register: mime_result
+  changed_when: "'ERROR' not in (mime_result.stderr | default(''))"
+  failed_when: false
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "web: remove the Stage 1 placeholder page(s) (portal's Default.aspx wins instead)"
+  ansible.windows.win_file:
+    path: "C:\\inetpub\\wwwroot\\{{ item }}"
+    state: absent
+  loop:
+    - index.html
+    - iisstart.htm
+    - iisstart.png
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "web: set default document to Default.aspx"
+  ansible.windows.win_shell: >-
+    & "$env:windir\system32\inetsrv\appcmd.exe" set config "Default Web Site" /section:defaultDocument /+"files.[value='Default.aspx']" /commit:apphost
+  changed_when: true
+  failed_when: false
+  tags: [vuln_stage3, web_portal_config_leak]
+
+- name: "web: ensure Default Web Site is started"
+  ansible.windows.win_shell: "Import-Module WebAdministration; Start-Website -Name 'Default Web Site'"
+  changed_when: true
+  failed_when: false
+  tags: [vuln_stage3, web_portal_config_leak]
+
+# Over-privileged service account (table row "Service accounts (sql1,
+# web)"): a dedicated LOCAL Windows account for the portal's app pool,
+# added to local Administrators where it only ever needed IIS_IUSRS. Kept
+# as a local account (not domain) so this finding stays self-contained to
+# `web` and doesn't touch dc1/AD -- distinct from the SQL-side "svc-web"
+# SQL login created in db_setup.yml, which the app's connection string
+# authenticates as.
+- name: "web: create the local svc-web service account"
+  ansible.windows.win_user:
+    name: "{{ web_portal_svc_account }}"
+    password: "{{ vault_web_portal_svc_web_local_password }}"
+    password_never_expires: true
+    update_password: on_create
+    state: present
+  tags: [vuln_stage3, web_svc_overprivileged]
+
+- name: "web: add svc-web to the local Administrators group (over-privileged)"
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members:
+      - "{{ web_portal_svc_account }}"
+    state: present
+  tags: [vuln_stage3, web_svc_overprivileged]
+
+- name: "web: run the portal's IIS app pool as svc-web"
+  ansible.windows.win_shell: >-
+    & "$env:windir\system32\inetsrv\appcmd.exe" set apppool "DefaultAppPool" /processModel.identityType:SpecificUser /processModel.userName:"{{ web_portal_svc_account }}" /processModel.password:"{{ vault_web_portal_svc_web_local_password }}"
+  changed_when: true
+  failed_when: false
+  tags: [vuln_stage3, web_svc_overprivileged]
+
+# Database backup on an open share (table row "Database backups on shared
+# folders (sql1, web)") -- the SAME .bak sql1 produced (roles/mssql_misconfig)
+# turns up here too. Original to this range; no matching source file found.
+- name: "web: create the open WebBackups share folder"
+  ansible.windows.win_file:
+    path: "{{ web_portal_backup_share.path }}"
+    state: directory
+  tags: [vuln_stage3, mssql_backup_share]
+
+- name: "web: copy the business-DB .bak fetched from sql1 onto the open share"
+  ansible.windows.win_copy:
+    src: "{{ playbook_dir }}/generated/{{ mssql_business_db }}.bak"
+    dest: "{{ web_portal_backup_share.path }}\\{{ mssql_business_db }}.bak"
+  register: bak_copy
+  failed_when: false
+  tags: [vuln_stage3, mssql_backup_share]
+
+- name: "web: warn if the sql1 .bak wasn't available to copy"
+  ansible.builtin.debug:
+    msg: >-
+      No {{ mssql_business_db }}.bak found at
+      {{ playbook_dir }}/generated/ -- run the sql_servers Stage 3 play
+      (roles/mssql_misconfig, which fetches it) before this one.
+  when: bak_copy is failed
+  tags: [vuln_stage3, mssql_backup_share]
+
+- name: "web: share the WebBackups folder (read: Everyone)"
+  ansible.windows.win_share:
+    name: "{{ web_portal_backup_share.name }}"
+    path: "{{ web_portal_backup_share.path }}"
+    read: ["Everyone"]
+    state: present
+  tags: [vuln_stage3, mssql_backup_share]

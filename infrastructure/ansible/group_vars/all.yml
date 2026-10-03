@@ -205,6 +205,34 @@ local_admin_reuse_account_name: "svc-helpdesk"
 # so the finding isn't tied to one persona's account).
 privesc_target_group: "Domain Users"
 
+# ── Stage 3 — Business Services (intentional vulnerabilities) ───────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc) per UPSTREAM.md, under
+# the owner's out-of-band reuse permission (2026-10-03). Every finding below
+# is gated by `vuln_stage | int >= 3` in site.yml AND carries its own Ansible
+# tag (vault.example.yml documents the matching secret placeholders). No real
+# secrets live in this file — only identities/placements. Role-local defaults
+# (share names/paths, etc.) live in each role's own defaults/main.yml instead
+# of being duplicated here.
+
+# SQL Server 2019 weak/default sa password (sql1, sql2) — mixed-mode auth
+# and the strong vault_mssql_sa_password are Stage 1 (roles/mssql_server);
+# this REPLACES sa's password with a deliberately weak/known one once
+# vuln_stage >= 3, and re-enables the sa login (disabled by default after
+# a Windows-auth-primary install). Also reused as the password for the
+# sql1->sql2 linked-server login (roles/mssql_misconfig).
+# (No separate "which accounts" list needed here — the account is always `sa`.)
+
+# IIS employee/customer portal (web) + its backing GuestPortal login DB
+# (sql1) — see roles/web_portal/defaults/main.yml for the DB name/share.
+# svc-web is TWO separate identities that happen to share a name: a SQL
+# login (the app's connection string) and a local Windows account on web
+# (the IIS app pool identity, made an over-privileged local admin).
+
+# "Database backups on shared folders (sql1, web)" ties roles/mssql_misconfig
+# (produces the .bak, shares it on sql1) to roles/web_portal (copies the
+# same .bak onto web's own open share) — see both roles' tasks for the
+# control-node fetch/copy mechanics.
+
 # ── Safety ───────────────────────────────────────────────────────────────────
 # Refuse to run if the range can reach the Internet (checked in common_prereqs).
 enforce_isolation_check: true

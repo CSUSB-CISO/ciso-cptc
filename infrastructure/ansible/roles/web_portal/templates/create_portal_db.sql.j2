@@ -1,0 +1,59 @@
+-- Stage 3 ("Business Services") — small GuestPortal login-table database on
+-- sql1 for the Butters Family Farm Employee & Guest Portal. Adapted from
+-- CyberHawks `cyber-range` roles/web_portal/files/create_portal_db.sql
+-- (98307cc), owner permission 2026-10-03 — see ../../../UPSTREAM.md.
+-- Changes: database/table re-themed, svc-web password templated from the
+-- vault instead of a sqlcmd -v lookup() variable.
+--
+-- Kept deliberately separate from the Stage 1 ParkOps business DB
+-- (roles/business_data) -- "fictional business database" is its own table
+-- row and its own finding; this is the much smaller app-login DB behind
+-- the portal.
+IF DB_ID('{{ web_portal_db_name }}') IS NULL
+BEGIN
+    CREATE DATABASE [{{ web_portal_db_name }}];
+END
+GO
+
+USE [{{ web_portal_db_name }}];
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Users')
+BEGIN
+    CREATE TABLE Users (
+        Id INT IDENTITY PRIMARY KEY,
+        Username NVARCHAR(50) NOT NULL UNIQUE,
+        PasswordHash CHAR(40) NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = 'admin')
+BEGIN
+    INSERT INTO Users (Username, PasswordHash) VALUES ('admin', CONVERT(CHAR(40), HASHBYTES('SHA1', 'abc123'), 2));
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'svc-web')
+BEGIN
+    CREATE LOGIN [svc-web] WITH PASSWORD = '{{ vault_web_portal_svc_web_password }}', CHECK_POLICY = OFF;
+END
+ELSE
+BEGIN
+    ALTER LOGIN [svc-web] WITH PASSWORD = '{{ vault_web_portal_svc_web_password }}';
+END
+GO
+
+USE [{{ web_portal_db_name }}];
+
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'svc-web')
+BEGIN
+    CREATE USER [svc-web] FOR LOGIN [svc-web];
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.database_role_members drm JOIN sys.database_principals p ON drm.member_principal_id = p.principal_id WHERE p.name = 'svc-web' AND drm.role_principal_id = DATABASE_PRINCIPAL_ID('db_datareader'))
+BEGIN
+    ALTER ROLE db_datareader ADD MEMBER [svc-web];
+END
+GO
+
+PRINT '{{ web_portal_db_name }} database configured';

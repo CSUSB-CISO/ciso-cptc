@@ -1,0 +1,10 @@
+-- Stage 3 T-SQL misconfiguration for sql2. Adapted from CyberHawks
+-- `cyber-range` roles/mssql_misconfig/files/mssql_config_sql2.sql (98307cc),
+-- owner permission 2026-10-03 — see ../../../UPSTREAM.md.
+--
+-- sql1's linked server (mssql_config_sql1.sql.j2) maps to this sa
+-- login/password, so any local login on sql1 reaches sysadmin here too.
+ALTER LOGIN sa ENABLE;
+ALTER LOGIN sa WITH PASSWORD = '{{ vault_mssql_weak_sa_password }}', CHECK_POLICY = OFF;
+
+PRINT 'sql2 Stage 3 misconfiguration applied';

@@ -1,0 +1,13 @@
+---
+# Stage 3 — Business Services. Fallbacks; override in group_vars/all.yml.
+
+web_portal_db_name: "GuestPortal"          # small login-table DB on sql1, separate from the Stage 1 ParkOps business DB
+web_portal_svc_account: "svc-web"          # local Windows account on `web` (NOT a domain account — see tasks/site_setup.yml)
+
+# Second open share (on web) that also carries a copy of the business DB
+# .bak fetched from sql1 (table row "Database backups on shared folders
+# (sql1, web)") — kept separate from Stage 2's smb_file_dump "Shared" share
+# so this role never touches that one.
+web_portal_backup_share:
+  name: "WebBackups"
+  path: 'C:\Shares\WebBackups'

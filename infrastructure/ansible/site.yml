@@ -138,6 +138,41 @@
     - role: local_admin_reuse
       when: vuln_stage | int >= 2
 
-# Stage 3 (mssql_misconfig) / Stage 4 (adcs_esc) remain STUBS — see
-# roles/_vuln_stubs/. They fail loudly rather than pretend to work, and are
-# intentionally NOT wired into any play here yet.
+# ── Intentional vulnerabilities — Stage 3 (Business Services) ──────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc) per the owner's
+# out-of-band reuse permission, 2026-10-03 — see UPSTREAM.md. Same pattern
+# as Stage 2 above: each finding is its own role/task file AND its own
+# Ansible tag, and the whole stage is additionally gated on vuln_stage so
+# lower-stage builds never touch any of this. Replaces
+# roles/_vuln_stubs/mssql_misconfig (deleted; superseded by the real role
+# below). Order matters here: the sql_servers play must run before the
+# web_servers:sql_servers play, since roles/mssql_misconfig fetches the
+# business-DB .bak that roles/web_portal then copies onto web's share.
+
+- name: Stage 3 — SQL Server misconfigurations (sql1, sql2)
+  hosts: sql_servers
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: mssql_misconfig
+      when: vuln_stage | int >= 3
+
+- name: Stage 3 — IIS employee/customer portal (web, sql1)
+  hosts: web_servers:sql_servers
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: web_portal
+      when: vuln_stage | int >= 3
+
+- name: Stage 3 — Windows 11 user artifacts (workstation)
+  hosts: workstations
+  gather_facts: false
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - role: workstation_artifacts
+      when: vuln_stage | int >= 3
+
+# Stage 4 (adcs_esc and friends) remains a STUB — see roles/_vuln_stubs/.
+# It fails loudly rather than pretend to work, and is intentionally NOT
+# wired into any play here yet.

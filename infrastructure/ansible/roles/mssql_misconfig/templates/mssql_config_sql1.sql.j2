@@ -1,0 +1,28 @@
+-- Stage 3 ("Business Services") T-SQL misconfiguration for sql1. Adapted
+-- from CyberHawks `cyber-range` roles/mssql_misconfig/files/mssql_config_sql1.sql
+-- (98307cc), owner permission 2026-10-03 — see ../../../UPSTREAM.md.
+--
+-- Changes from source: domain/account names templated instead of hardcoded
+-- CYBERHAWKS; the sa password comes from the vault instead of a lookup()
+-- against a generated/ file (this range keeps ALL secrets in vault vars —
+-- see group_vars/vault.example.yml); dropped the source's extra
+-- "[THELARPERS\Domain Users] IMPERSONATE ON LOGIN::sa" grant (not a listed
+-- finding for this range's Stage 3 map — would be scope creep).
+--
+-- Finding 1: sa enabled with a weak/known password (mixed-mode auth is
+-- already on from Stage 1 — roles/mssql_server).
+ALTER LOGIN sa ENABLE;
+ALTER LOGIN sa WITH PASSWORD = '{{ vault_mssql_weak_sa_password }}', CHECK_POLICY = OFF;
+
+-- Finding 2: a limited linked-server trust from sql1 to sql2, mapped to
+-- sql2's sa login/password -- any local login on sql1 (including the weak
+-- sa above) can reach sql2 as sysadmin through the link. This is the
+-- "sql1 -> sql2" lateral-movement setup; it stands on its own for Stage 3
+-- and becomes directly usable once Stage 4 AD findings land on top of it.
+IF NOT EXISTS (SELECT 1 FROM sys.servers WHERE name = 'SQL2')
+BEGIN
+    EXEC sp_addlinkedserver @server = N'SQL2', @srvproduct = N'SQL Server';
+END
+EXEC sp_addlinkedsrvlogin @rmtsrvname = N'SQL2', @useself = N'False', @locallogin = NULL, @rmtuser = N'sa', @rmtpassword = N'{{ vault_mssql_weak_sa_password }}';
+
+PRINT 'sql1 Stage 3 misconfiguration applied';

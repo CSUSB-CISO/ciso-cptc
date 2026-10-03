@@ -1,0 +1,15 @@
+---
+# Stage 3 ("Business Services") — IIS employee/customer portal + its
+# over-privileged service account + its share of the open-share DB-backup
+# finding. Applied to the web_servers:sql_servers group in site.yml (gated
+# vuln_stage | int >= 3); branches per host below since the portal needs
+# work on both `web` (the site itself) and `sql1` (its backing database).
+# sql2 is intentionally not touched by this role.
+
+- name: "web-side portal deployment"
+  ansible.builtin.include_tasks: site_setup.yml
+  when: inventory_hostname == 'web'
+
+- name: "sql1-side portal database"
+  ansible.builtin.include_tasks: db_setup.yml
+  when: inventory_hostname == 'sql1'

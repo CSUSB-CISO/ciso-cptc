@@ -1,0 +1,10 @@
+---
+# Stage 3 — Business Services. Fallbacks; override in group_vars/all.yml.
+#
+# All artifacts are placed under C:\Users\Public rather than a specific
+# domain user's profile folder, so they exist idempotently as soon as this
+# role runs -- a named user's own profile (e.g. C:\Users\g.usher) doesn't
+# exist on disk until that user's first interactive/domain logon, which
+# Ansible can't guarantee has happened. See tasks/main.yml for the longer
+# design note.
+workstation_artifacts_root: 'C:\Users\Public'

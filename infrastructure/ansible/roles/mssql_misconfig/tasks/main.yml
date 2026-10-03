@@ -1,0 +1,18 @@
+---
+# Stage 3 ("Business Services") — SQL Server misconfigurations. Replaces
+# the roles/_vuln_stubs/mssql_misconfig stub. Applied to the whole
+# sql_servers group in site.yml (gated vuln_stage | int >= 3); branches
+# per host below since sql1 and sql2 need slightly different T-SQL.
+#
+# The BENIGN SQL install (mixed-mode auth, strong sa password) and the
+# benign fictional business database are Stage 1 — see roles/mssql_server
+# and roles/business_data — and are untouched by this role. This role only
+# layers the Stage 3 weak-password override and the other findings on top.
+
+- name: "sql1 misconfigurations"
+  ansible.builtin.include_tasks: sql1.yml
+  when: inventory_hostname == 'sql1'
+
+- name: "sql2 misconfigurations"
+  ansible.builtin.include_tasks: sql2.yml
+  when: inventory_hostname == 'sql2'

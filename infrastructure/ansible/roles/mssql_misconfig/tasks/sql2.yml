@@ -1,0 +1,61 @@
+---
+# Stage 3 — sql2 misconfigurations. Adapted from CyberHawks `cyber-range`
+# roles/mssql_misconfig (98307cc), owner permission 2026-10-03 — see
+# ../../../UPSTREAM.md. Runs only when inventory_hostname == 'sql2'.
+#
+# sql1's linked server (tasks/sql1.yml) is only useful once sql2 also has
+# sa enabled with the SAME weak password, so this is the minimum needed on
+# sql2 for the "sql1 -> sql2" finding to work end to end.
+
+- name: "sql2: stage the weak-sa T-SQL script"
+  ansible.windows.win_template:
+    src: mssql_config_sql2.sql.j2
+    dest: 'C:\Windows\Temp\mssql_config_sql2.sql'
+  tags: [vuln_stage3, mssql_weak_sa, mssql_linked_server]
+
+- name: "sql2: apply weak sa password"
+  ansible.windows.win_shell: 'sqlcmd -S localhost -E -i C:\Windows\Temp\mssql_config_sql2.sql'
+  register: sql2_misconfig
+  changed_when: true
+  tags: [vuln_stage3, mssql_weak_sa, mssql_linked_server]
+
+- name: "sql2: show T-SQL result"
+  ansible.builtin.debug:
+    var: sql2_misconfig.stdout_lines
+  tags: [vuln_stage3, mssql_weak_sa, mssql_linked_server]
+
+- name: "sql2: remove staged T-SQL script"
+  ansible.windows.win_file:
+    path: 'C:\Windows\Temp\mssql_config_sql2.sql'
+    state: absent
+  tags: [vuln_stage3, mssql_weak_sa, mssql_linked_server]
+
+# Over-privileged service account, same as sql1 (table row "Service
+# accounts (sql1, web)" — sql2 isn't explicitly listed but shares sql1's
+# engine config 1:1 in this range, so leaving it on its Stage 1 identity
+# while sql1 changes would be an inconsistency a student could notice and
+# question; kept for realism, same tag so a coach can disable it range-wide
+# with one --skip-tags).
+- name: "sql2: add svc-sql to the local Administrators group (over-privileged)"
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members:
+      - "{{ domain_netbios }}\\svc-sql"
+    state: present
+  tags: [vuln_stage3, mssql_svc_overprivileged]
+
+- name: "sql2: run the MSSQLSERVER service as svc-sql"
+  ansible.windows.win_shell: |
+    $acct = "{{ domain_netbios }}\svc-sql"
+    $current = (Get-CimInstance Win32_Service -Filter "Name='MSSQLSERVER'").StartName
+    if ($current -ne $acct) {
+      sc.exe config MSSQLSERVER obj= $acct password= "{{ vault_kerberoastable_svc_sql_password }}" | Out-Null
+      Restart-Service -Name MSSQLSERVER -Force
+      Start-Sleep -Seconds 5
+      Write-Output "Changed MSSQLSERVER service account to $acct"
+    } else {
+      Write-Output "MSSQLSERVER already runs as $acct"
+    }
+  register: svc_result
+  changed_when: "'Changed' in svc_result.stdout"
+  tags: [vuln_stage3, mssql_svc_overprivileged]

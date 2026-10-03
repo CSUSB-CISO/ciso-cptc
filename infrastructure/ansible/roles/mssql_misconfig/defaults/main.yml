@@ -1,0 +1,8 @@
+---
+# Stage 3 — Business Services. Fallbacks; override in group_vars/all.yml.
+
+# Open share on sql1 holding a .bak of the fictional business database
+# (group_vars/all.yml mssql_business_db, Stage 1 roles/business_data).
+mssql_misconfig_backup_share:
+  name: "Backups"
+  path: 'C:\Shares\Backups'

@@ -62,3 +62,34 @@ vault_kerberoastable_svc_sql_password: "CHANGE_ME_kerberoast_lab_only"
 # ALSO the password the GPP cpassword finding (dc1 SYSVOL) reveals, so the
 # two findings intentionally chain together.
 vault_local_admin_reuse_password: "CHANGE_ME_reused_lab_only"
+
+# ── Stage 3 — Business Services (intentional vulnerabilities) ──────────────
+# Ported/adapted from CyberHawks `cyber-range` (98307cc), owner permission
+# 2026-10-03 — see UPSTREAM.md. Lab-only, deliberately weak/known values;
+# NEVER reuse any of these outside this isolated range.
+
+# sa's REPLACEMENT password once vuln_stage >= 3 (roles/mssql_misconfig)
+# on both sql1 and sql2 — deliberately weak/default, unlike Stage 1's
+# strong vault_mssql_sa_password above. Also used as the sql1->sql2
+# linked-server login password, so this one value drives both the
+# "weak/default sa password" finding and the "limited linked-server"
+# finding.
+vault_mssql_weak_sa_password: "CHANGE_ME_sa_weak_lab_only"
+
+# GuestPortal's SQL login password (svc-web) — the IIS portal's
+# connection-string credential, leaked in plaintext via Web.config.bak
+# (roles/web_portal). Deliberately not vault_mssql_sa_password-strength;
+# pick a crackable-but-plausible value.
+vault_web_portal_svc_web_password: "CHANGE_ME_svcweb_lab_only"
+
+# svc-web's SEPARATE local Windows account password on `web` (the IIS app
+# pool identity, added to local Administrators — the "over-privileged
+# service account" finding). Intentionally a different value from the SQL
+# login above so the two leak paths (Web.config.bak vs. local-account
+# compromise) don't collapse into the same credential.
+vault_web_portal_svc_web_local_password: "CHANGE_ME_svcweb_local_lab_only"
+
+# Fake "API key" suffix planted in the workstation ticketing-tool config
+# leak (roles/workstation_artifacts) — not a real secret format, just
+# needs to look plausible in a grep/strings pass.
+vault_workstation_app_config_api_key: "CHANGE_ME_apikey_lab_only"
