@@ -12,7 +12,7 @@ single host. If dc2 is ever rebuilt/re-cloned, re-run these same steps.
 
 **Prereqs**
 - dc1 has already been promoted and `{{ domain_dns_name }}` (see
-  `group_vars/all.yml` — currently `buttersfarm.lab` / `BUTTERS`) exists and is
+  `group_vars/all.yml` — currently `thelarpers.local` / `THELARPERS`) exists and is
   reachable from dc2 over `cptcnet`.
 - dc2's local Administrator password (`COACH_CREDENTIALS.md`).
 - The domain Administrator (= dc1's local Administrator) credential, and a
@@ -28,8 +28,8 @@ single host. If dc2 is ever rebuilt/re-cloned, re-run these same steps.
    ```
    Confirm dc2 can resolve the domain:
    ```powershell
-   Resolve-DnsName buttersfarm.lab
-   nltest /dsgetdc:buttersfarm.lab
+   Resolve-DnsName thelarpers.local
+   nltest /dsgetdc:thelarpers.local
    ```
 
 2. **Install the AD DS role (and DNS, since dc2 will also be a DNS server):**
@@ -40,8 +40,8 @@ single host. If dc2 is ever rebuilt/re-cloned, re-run these same steps.
 3. **Promote dc2 as an additional domain controller in the existing forest:**
    ```powershell
    Install-ADDSDomainController `
-     -DomainName "buttersfarm.lab" `
-     -Credential (Get-Credential BUTTERS\Administrator) `
+     -DomainName "thelarpers.local" `
+     -Credential (Get-Credential THELARPERS\Administrator) `
      -SafeModeAdministratorPassword (ConvertTo-SecureString "<DSRM password>" -AsPlainText -Force) `
      -InstallDns `
      -CreateDnsDelegation:$false `
@@ -54,7 +54,7 @@ single host. If dc2 is ever rebuilt/re-cloned, re-run these same steps.
    When prompted, enter dc1's domain Administrator password. The host reboots
    automatically when promotion completes.
 
-4. **Verify after reboot** (log back in as `BUTTERS\Administrator`):
+4. **Verify after reboot** (log back in as `THELARPERS\Administrator`):
    ```powershell
    Get-ADDomainController -Filter * | Select-Object Name, IPv4Address, OperationMasterRoles
    repadmin /replsummary

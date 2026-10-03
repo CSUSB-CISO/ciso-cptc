@@ -65,7 +65,7 @@ checklist). Provide the template VM IDs:
 
 | # | Item | Notes |
 |---|---|---|
-| E1 | **SQL Server 2019 Developer** installer | Your `MSSQL2019.exe` is the **Evaluation** stub (expires 180 days). Download the **Developer** stub instead — free, full-featured, no expiry. Place ISO/exe where the `mssql_server` role expects (see role defaults). |
+| E1 | **SQL Server 2019 Developer** installer | Your `MSSQL2019.exe` is the **Evaluation** stub (expires 180 days). Download the **Developer** stub instead — free, full-featured, no expiry. **Resolved 2026-10-02**: ships as a mounted ISO on sql1/sql2 (`D:\setup.exe`), not a copied file — see `mssql_installer_path` in `group_vars/all.yml`. |
 | E2 | SSMS (optional) | For manual DB inspection |
 | E3 | CyberHawks reuse permission | **[BLOCKER for Stage 2–4]** Explicit written OK from the repo owner, or a LICENSE added to `cyber-range`. MVP does **not** need this. |
 
@@ -75,9 +75,9 @@ All are **[PROPOSAL]s** — the range builds fine as-is; edit to taste.
 
 | # | Decision | Variable | [PROPOSAL] default |
 |---|---|---|---|
-| F1 | Fictional company name | `company_name` | **`Butters Family Farm`** (CPTC12 theme — theme-park operator) |
-| F2 | AD domain (DNS) | `domain_dns_name` | `buttersfarm.lab` |
-| F3 | NetBIOS name | `domain_netbios` | `BUTTERS` |
+| F1 | Fictional company name | `company_name` | **RESOLVED** `Butters Family Farm` (CPTC12 theme — theme-park operator) |
+| F2 | AD domain (DNS) | `domain_dns_name` | **RESOLVED** `thelarpers.local` (decoupled from `company_name` — team identity, not scenario theme) |
+| F3 | NetBIOS name | `domain_netbios` | **RESOLVED** `THELARPERS` |
 | F4 | Hostnames | `hosts.*` | `dc1`, `sql1`, `ws1`, `kali` |
 | F5 | Static IPs | `hosts.*.ip` | `.10` dc1, `.20` sql1, `.50` ws1, `.100` kali |
 | F6 | # Win11 endpoints | add to `hosts` map | 1 for MVP (2–4 personas at Stage 3) |

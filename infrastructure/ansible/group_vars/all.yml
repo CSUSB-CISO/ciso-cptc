@@ -17,9 +17,13 @@ vuln_stage: 1
 # This is a TRAINING analogue, not the real competition environment.
 company_name: "Butters Family Farm"      # CPTC12 theme (theme-park operator)
 company_short: "BFF"
-domain_dns_name: "buttersfarm.lab"       # [PROPOSAL] themed
-domain_netbios: "BUTTERS"                # [PROPOSAL] themed
-# Derived automatically (do not edit): DC=buttersfarm,DC=lab
+# RESOLVED (2026-10-02, coach decision): domain stays thelarpers.local/THELARPERS
+# even though the fictional company (theme-park) name is "Butters Family Farm" —
+# the two are intentionally decoupled: company_name is the in-universe scenario
+# brand, domain_dns_name is the team's own range identity ("The Larpers").
+domain_dns_name: "thelarpers.local"
+domain_netbios: "THELARPERS"
+# Derived automatically (do not edit): DC=thelarpers,DC=local
 domain_dn: "DC={{ domain_dns_name.split('.') | join(',DC=') }}"
 
 branding_team_name: "The Larpers"
@@ -102,7 +106,11 @@ smb_shares:
 mssql_instance_name: "MSSQLSERVER"        # default instance
 mssql_edition: "Developer"                # NOT Evaluation (see REQUIRED_INPUTS.md E1)
 mssql_business_db: "ParkOps"              # theme-park operations DB
-mssql_installer_path: 'C:\\Installers\\SQL2019-Dev\\setup.exe'  # where you place it
+# RESOLVED (2026-10-02, coach decision): 2 SQL servers (sql1/sql2) confirmed.
+# Installer ships as a mounted ISO on each SQL host (coach's own media), not a
+# pre-extracted copy under C:\Installers — Windows assigns the mounted-ISO
+# drive letter D: when C: is the only existing disk (standard on these VMs).
+mssql_installer_path: 'D:\\setup.exe'     # root of the mounted SQL ISO (coach confirmed)
 mssql_mixed_mode: true                    # SQL auth enabled (realistic; sa in Vault)
 
 # ── Workstation personas (Stage 1 uses one) ──────────────────────────────────

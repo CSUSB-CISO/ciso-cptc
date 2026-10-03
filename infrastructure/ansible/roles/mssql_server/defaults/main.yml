@@ -4,4 +4,6 @@ mssql_instance_name: "MSSQLSERVER"
 mssql_edition: "Developer"
 mssql_mixed_mode: true
 mssql_business_db: "BusinessDB"
+# Fallback only — group_vars/all.yml overrides this to 'D:\setup.exe' (root of
+# the mounted SQL ISO on sql1/sql2, coach-confirmed 2026-10-02).
 mssql_installer_path: 'C:\Installers\SQL2019-Dev\setup.exe'

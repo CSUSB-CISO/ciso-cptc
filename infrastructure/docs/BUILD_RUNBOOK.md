@@ -36,8 +36,10 @@ echo 'YOUR-VAULT-PASSWORD' > ~/.ansible-secrets/larpers_vault_pass && chmod 600 
 ```
 
 Place the **SQL Server 2019 Developer** installer where `mssql_installer_path`
-points (default `C:\Installers\SQL2019-Dev\setup.exe` on sql1 — bake it into the
-template, or copy it up before the SQL role runs).
+points. On the real build this is the mounted SQL ISO's `setup.exe` at
+`D:\setup.exe` on sql1/sql2 (coach-confirmed — the installer ships as a
+mounted ISO, not a copied file); mount the ISO to each SQL host before the
+`mssql_server` role runs.
 
 ## 2. Provision (Terraform)
 

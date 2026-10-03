@@ -8,9 +8,11 @@ enabled**; later stages switch on intentional vulnerabilities via a single
 `vuln_stage` variable.
 
 **Themed to the CPTC12 (2026–27) scenario — "Butters Family Farm,"** an aging
-family-owned theme park (rides, attractions, patron operations). Domain
-`buttersfarm.lab` / NetBIOS `BUTTERS`, with a `ParkOps` database (rides, patrons,
-season passes, maintenance tickets, vendors). It's a *training analogue* for
+family-owned theme park (rides, attractions, patron operations), with a
+`ParkOps` database (rides, patrons, season passes, maintenance tickets,
+vendors). The AD domain itself is the team's own range identity — RESOLVED
+2026-10-02: `thelarpers.local` / NetBIOS `THELARPERS` — intentionally
+decoupled from the in-universe `company_name`. It's a *training analogue* for
 practice, **not** the real competition environment.
 
 > **Isolation is mandatory.** This range must never touch the campus network or

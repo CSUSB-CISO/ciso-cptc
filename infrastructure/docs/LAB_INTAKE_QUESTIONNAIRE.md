@@ -90,7 +90,7 @@ ansible/inventory/hosts.yml.
 
 - **[P1]** Keep proposed IPs (dc1 .10, sql1 .20, ws1 .50, kali .100)? — *all.yml `hosts.*`*
 - **[P1]** Keep proposed VM IDs (210/220/250/200)? Any Proxmox VMID ranges reserved? — *tfvars `vms`, scripts VMIDS*
-- **[P1]** Confirm domain `buttersfarm.lab` / NetBIOS `BUTTERS` (themed to CPTC12). — *all.yml*
+- ~~**[P1]** Confirm domain~~ — **RESOLVED 2026-10-02**: `thelarpers.local` / NetBIOS `THELARPERS` (the team's own range identity; the CPTC12 theme-park scenario name "Butters Family Farm" stays as `company_name` only, decoupled from the domain). — *all.yml*
 - **[P2]** DNS forwarders? (Normally none — isolated. Confirm no upstream DNS.) — *dc config*
 
 ## 5. Secrets & credential management  [P0]

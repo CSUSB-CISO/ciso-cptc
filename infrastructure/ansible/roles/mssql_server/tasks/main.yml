@@ -1,7 +1,9 @@
 ---
 # Install SQL Server 2019 (Developer) unattended, mixed-mode, TCP enabled.
-# You must place the extracted installer at mssql_installer_path (see
-# REQUIRED_INPUTS.md E1 — use Developer, NOT the Evaluation stub).
+# mssql_installer_path points at the mounted SQL ISO's setup.exe (coach
+# confirmed 2026-10-02 the installer ships as a mounted ISO, not a copied
+# file — see group_vars/all.yml and REQUIRED_INPUTS.md E1; use Developer,
+# NOT the Evaluation stub).
 
 - name: Check whether the SQL Engine service already exists
   ansible.windows.win_service_info:
