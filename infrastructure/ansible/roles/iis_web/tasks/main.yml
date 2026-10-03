@@ -1,0 +1,65 @@
+---
+# Install IIS on `web` and publish a benign placeholder intranet page.
+#
+# DESIGN NOTE (answers the "what design is needed" open question):
+#   - Stage 1 (vuln_stage: 1, current) = a static, informational-only page.
+#     No app logic, no database connection, no auth — nothing to attack yet,
+#     consistent with the MVP's "AD/DNS/SQL/benign data, NO exploits" scope.
+#   - Domain join: `web` is joined to the domain first (domain_join role,
+#     applied to the web_servers group in site.yml) so IIS can later use
+#     Windows/Kerberos auth and a cert issued by `ca` — both deferred to a
+#     later stage, not needed for the placeholder page.
+#   - Stage 3/4 (once CyberHawks reuse permission / original redesign is
+#     settled — see UPSTREAM.md and the _vuln_stubs roles) is where this
+#     becomes a real app: likely a small intranet portal that reads from the
+#     `ParkOps` SQL database on sql1/sql2 (business_data role), fronted by
+#     IIS here, with the intentional vulnerabilities layered in deliberately
+#     rather than organically. That work is out of scope until the vuln
+#     sequence (open decision) is set.
+
+- name: Install IIS (Web-Server) role + common sub-features + management tools
+  ansible.windows.win_feature:
+    name:
+      - Web-Server
+      - Web-Common-Http
+      - Web-Default-Doc
+      - Web-Static-Content
+      - Web-Http-Errors
+      - Web-Mgmt-Console
+    include_management_tools: true
+    state: present
+
+- name: Ensure World Wide Web Publishing service (W3SVC) is running
+  ansible.windows.win_service:
+    name: W3SVC
+    start_mode: auto
+    state: started
+
+- name: Deploy a benign placeholder intranet homepage
+  ansible.windows.win_copy:
+    content: |
+      <!DOCTYPE html>
+      <html>
+      <head><title>{{ company_name }} Intranet</title></head>
+      <body style="font-family: sans-serif; background:#f4f4f4; padding:2em;">
+        <h1>{{ company_name }} Intranet Portal</h1>
+        <p>Training range ({{ branding_team_name }}). This is a synthetic
+        environment — no real {{ company_name }} data.</p>
+        <ul>
+          <li>HR Self-Service (coming soon)</li>
+          <li>Ride &amp; Attraction Maintenance Tickets (coming soon)</li>
+          <li>Guest Services Dashboard (coming soon)</li>
+        </ul>
+      </body>
+      </html>
+    dest: "C:\\inetpub\\wwwroot\\index.html"
+
+- name: Open HTTP port 80 on host firewall (range-internal only)
+  community.windows.win_firewall_rule:
+    name: "IIS HTTP 80 (lab)"
+    localport: 80
+    action: allow
+    direction: in
+    protocol: tcp
+    state: present
+    enabled: true

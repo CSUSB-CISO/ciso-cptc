@@ -35,23 +35,22 @@ dns_primary: "10.20.10.2"                # dc1
 # cloned/OOBE'd/static-IP'd on October 2, 2026. OS reflects the template each
 # VM was actually cloned from, not the design review's proposed mapping.
 #
-# NOTE — dc2, ca, and web are listed here (and in inventory/hosts.yml) so their
-# IPs/hostnames are tracked, but none of them has an Ansible role yet and none
-# is wired into site.yml's domain/SQL/workstation plays:
+# NOTE (updated 2026-10-02) — dc2 remains the one unautomated host:
 #   - dc2: the `domain_controller` role only promotes a brand-new forest
 #     (`microsoft.ad.domain` with no DC-join mode). Pointing it at dc2 would
 #     try to create a second forest instead of joining dc2 to the one dc1
-#     creates, which would corrupt the domain. It needs a separate
-#     "additional domain controller" task set first.
-#   - ca: needs an AD CS (Enterprise Root CA) role — not written yet.
-#   - web: needs an IIS/web-portal role — not written yet.
-# These three are Stage 3/4 backlog per CSUSB_CPTC_Range_Design_Review.md
-# item 8. dc1, sql1, sql2, and workstation ARE wired into site.yml today.
+#     creates, which would corrupt the domain. Rather than build a new
+#     "additional domain controller" Ansible role, the coach promotes dc2
+#     manually — see docs/dc2-manual-promotion.md.
+# ca and web NOW have Ansible roles (adcs_ca, iis_web) and ARE wired into
+# site.yml (domain_join + their own role, right after the domain_controller
+# play). dc1, sql1, sql2, ca, web, and workstation are all wired today; only
+# dc2 is intentionally left out.
 hosts:
   dc1:         { ip: "10.20.10.2", role: dc,          os: win2016 }
-  dc2:         { ip: "10.20.10.3", role: dc,          os: win2019 }   # not yet wired — see NOTE above
-  ca:          { ip: "10.20.10.4", role: ca,          os: win2019 }   # not yet wired — see NOTE above
-  web:         { ip: "10.20.10.5", role: web,         os: win2022 }   # not yet wired — see NOTE above
+  dc2:         { ip: "10.20.10.3", role: dc,          os: win2019 }   # manual promotion only — see NOTE above
+  ca:          { ip: "10.20.10.4", role: ca,          os: win2019 }
+  web:         { ip: "10.20.10.5", role: web,         os: win2022 }
   sql1:        { ip: "10.20.10.6", role: sql,         os: win2016 }
   sql2:        { ip: "10.20.10.7", role: sql,         os: win2022 }
   workstation: { ip: "10.20.10.8", role: workstation, os: win11, persona: guest_services }

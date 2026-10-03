@@ -1,0 +1,77 @@
+---
+# Configure `ca` as an Enterprise Root Certificate Authority for
+# {{ domain_dns_name }}.
+#
+# PREREQS (handled by site.yml before this role runs):
+#   1. dc1 has already been promoted (domain_controller role) — the domain
+#      must exist before an Enterprise CA can be installed.
+#   2. ca has already been domain-joined (domain_join role, applied to the
+#      certificate_authorities group) — Enterprise CA mode requires AD and
+#      Enterprise Admin rights, unlike a Standalone CA.
+#
+# DESIGN NOTE (answers the "what design is needed" open question):
+#   - CA type: Enterprise Root CA (not Standalone). This is the realistic
+#     choice for an AD-integrated training range — it publishes its cert to
+#     AD, supports autoenrollment, and is what most real orgs (and most CPTC
+#     scenarios) actually run. A Standalone CA would avoid the domain-join
+#     prereq but would be far less realistic and wouldn't integrate with the
+#     domain_controller role's existing AD content.
+#   - This is a single-tier CA (Root CA with no subordinate/issuing CA) —
+#     appropriate for Stage 1 MVP scope. A two-tier PKI (offline root +
+#     issuing CA) is a reasonable Stage 3/4 enhancement if a coach wants to
+#     teach PKI attack paths (ESC1-ESC8 etc. — see _vuln_stubs/adcs_esc),
+#     but adds real build complexity and isn't needed to unblock the range.
+#   - CA common name defaults to "{{ company_short }}-Enterprise-Root-CA"
+#     (see defaults/main.yml) — update once final branding is locked in.
+
+- name: Install AD Certificate Services role + management tools
+  ansible.windows.win_feature:
+    name:
+      - ADCS-Cert-Authority
+      - RSAT-ADCS
+      - RSAT-ADCS-Mgmt
+    include_management_tools: true
+    state: present
+  register: adcsfeat
+
+- name: Check whether this host is already configured as a CA
+  ansible.windows.win_service_info:
+    name: CertSvc
+  register: certsvc
+  failed_when: false
+
+- name: Configure Enterprise Root CA
+  ansible.windows.win_shell: |
+    Install-AdcsCertificationAuthority `
+      -CAType EnterpriseRootCA `
+      -CACommonName "{{ adcs_ca_common_name }}" `
+      -KeyLength {{ adcs_ca_key_length }} `
+      -HashAlgorithmName {{ adcs_ca_hash_algorithm }} `
+      -ValidityPeriod Years `
+      -ValidityPeriodUnits {{ adcs_ca_validity_years }} `
+      -Force
+  register: adcsinstall
+  when: not (certsvc.services | default([]) | length > 0)
+  failed_when:
+    - adcsinstall.rc is defined
+    - adcsinstall.rc != 0
+    - "'already' not in (adcsinstall.stderr | default('') | lower)"
+
+- name: Ensure Certificate Services (CertSvc) is running
+  ansible.windows.win_service:
+    name: CertSvc
+    start_mode: auto
+    state: started
+
+- name: Install Certification Authority Web Enrollment feature
+  ansible.windows.win_feature:
+    name: ADCS-Web-Enrollment
+    include_management_tools: true
+    state: present
+  register: webenroll
+
+- name: Configure Web Enrollment role service (lets users request certs via browser at /certsrv)
+  ansible.windows.win_shell: |
+    Install-AdcsWebEnrollment -Force
+  when: webenroll.changed | default(false)
+  failed_when: false

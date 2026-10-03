@@ -1,0 +1,7 @@
+---
+# Sensible fallbacks; override in group_vars/all.yml if desired.
+# [PROPOSAL] — rename once final company branding is locked in.
+adcs_ca_common_name: "{{ company_short }}-Enterprise-Root-CA"
+adcs_ca_key_length: 2048
+adcs_ca_hash_algorithm: SHA256
+adcs_ca_validity_years: 5

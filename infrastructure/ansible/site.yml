@@ -40,6 +40,35 @@
     - mssql_server
     - business_data
 
+# ── Certificate Authority + Web server (added 2026-10-02) ──────────────────
+# dc2 is deliberately NOT included below — promoting an additional domain
+# controller is done manually by the coach (see
+# docs/dc2-manual-promotion.md), not via Ansible. ca and web, by contrast,
+# only need a plain domain join plus their own role — no new-forest-vs-join
+# ambiguity — so they're safe to automate. See roles/adcs_ca and
+# roles/iis_web for the design rationale (Enterprise Root CA, single-tier;
+# Stage 1 static placeholder page).
+- name: Certificate Authority + Web server — join domain
+  hosts: certificate_authorities:web_servers
+  gather_facts: true
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - domain_join
+
+- name: Certificate Authority — install AD CS (Enterprise Root CA)
+  hosts: certificate_authorities
+  gather_facts: true
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - adcs_ca
+
+- name: Web server — install IIS + placeholder intranet page
+  hosts: web_servers
+  gather_facts: true
+  vars_files: [group_vars/vault.yml]
+  roles:
+    - iis_web
+
 - name: Workstation — join to domain
   hosts: workstations
   gather_facts: true
